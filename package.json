@@ -1,0 +1,28 @@
+{
+  "name": "amerconvert",
+  "version": "1.0.0",
+  "description": "A CSV to JSON converter using xlsx-js-style",
+  "scripts": {
+    "dev": "parcel src/index.html --open",
+    "build": "parcel build src/index.html"
+  },
+  "keywords": [
+    "csv",
+    "json",
+    "converter"
+  ],
+  "author": "mycoding98",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@types/node": "^22.15.18",
+    "exceljs": "^4.4.0",
+    "xlsx-js-style": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/exceljs": "^0.5.3",
+    "@types/xlsx": "^0.0.35",
+    "parcel": "^2.15.1",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es5",                        // Use ES5 for compatibility
+    "module": "esnext",                     // Use ESNext for modern module support
+    "strict": true,                         // Enable all strict type-checking options
+    "esModuleInterop": true,                // Enable compatibility with CommonJS modules
+    "moduleResolution": "node",             // Use Node.js module resolution
+    "resolveJsonModule": true,              // Allow importing JSON files
+    "outDir": "./dist",                     // Output folder for compiled JavaScript files
+    "rootDir": "./src",                     // Root folder for TypeScript source files
+    "sourceMap": true,// Generate source maps for debugging
+    "skipLibCheck": true       //checking for declaration files                
+  },
+  "include": ["src/**/*.ts"],               // Include all TypeScript files in the src folder
+  "exclude": ["dist", "node_modules"]       // Exclude output and dependency folders
+}
