@@ -1,0 +1,33 @@
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+
+.section {
+  margin-bottom: 20px;
+}
+textarea {
+  width: 100%;
+  height: 100px;
+  margin-top: 10px;
+}
+#output {
+  background: #f4f4f4;
+  padding: 10px;
+  border: 1px solid #ccc;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+button {
+  margin-right: 10px;
+}
+#actionButtons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.checkbox-group {
+  margin-bottom: 10px;
+}

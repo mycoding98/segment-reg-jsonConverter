@@ -1,15 +1,17 @@
 {
   "compilerOptions": {
-    "target": "es5",                        // Use ES5 for compatibility
-    "module": "esnext",                     // Use ESNext for modern module support
+    "target": "es5",                        // Compile to ES5 for compatibility with older browsers
+    "module": "esnext",                     // Use modern ESNext modules for compatibility with bundlers
     "strict": true,                         // Enable all strict type-checking options
-    "esModuleInterop": true,                // Enable compatibility with CommonJS modules
-    "moduleResolution": "node",             // Use Node.js module resolution
-    "resolveJsonModule": true,              // Allow importing JSON files
-    "outDir": "./dist",                     // Output folder for compiled JavaScript files
-    "rootDir": "./src",                     // Root folder for TypeScript source files
-    "sourceMap": true,// Generate source maps for debugging
-    "skipLibCheck": true       //checking for declaration files                
+    "esModuleInterop": true,                // Add interop for importing CommonJS modules
+    "moduleResolution": "node",             // Resolve modules like Node.js does
+    "resolveJsonModule": true,              // Allow importing JSON files as modules
+    "outDir": "./dist",                     // Output compiled JavaScript files into the 'dist' folder
+    "rootDir": "./src",                     // Specify the root directory for your source files
+    "sourceMap": true,                      // Enable source map generation for easier debugging
+    "skipLibCheck": true,                   // Skip type checks for declaration files (.d.ts)
+    "lib": ["esnext", "dom"],               // Include ESNext and DOM libraries for browser environments
+    "noEmitOnError": true                   // Prevent emitting files if there's a TypeScript error
   },
   "include": ["src/**/*.ts"],               // Include all TypeScript files in the src folder
   "exclude": ["dist", "node_modules"]       // Exclude output and dependency folders

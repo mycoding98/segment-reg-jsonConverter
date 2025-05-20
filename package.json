@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "A CSV to JSON converter using xlsx-js-style",
   "scripts": {
-    "dev": "parcel src/index.html --open",
-    "build": "parcel build src/index.html"
+    "dev": "parcel src/index.html --open", 
+    "build": "rm -rf dist && parcel build src/index.html --dist-dir dist --public-url ./", 
+    "start": "http-server dist -p 8080", 
+    "clean": "rm -rf .cache dist" 
   },
   "keywords": [
     "csv",
@@ -15,14 +17,18 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@types/node": "^22.15.18",
+    "@types/node": "22.15.20",
+    "ajv": "^8.17.1",
+    "csv-parser": "^3.2.0",
     "exceljs": "^4.4.0",
+    "inquirer": "^12.6.1",
     "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@types/exceljs": "^0.5.3",
     "@types/xlsx": "^0.0.35",
     "parcel": "^2.15.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "http-server": "^14.1.1" 
   }
 }

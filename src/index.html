@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AMERconvert - Convert and validate CSV/JSON/XLSX segmentation data.">
+  <title>AMERconvert</title>
+  <link rel="icon" href="./favicon.ico">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script type="module" src="./script.ts"></script>
+  <script type="module" src="./jsonValidator.ts"></script>
+</head>
+<body>
+  <h1>AMERconvert</h1>
+  <p>Convert `.csv` or segmentation `.xlsx` files into JSON. Validate JSON data.</p>
+
+  <!-- File upload section -->
+  <div class="section">
+    <h2>Upload File</h2>
+    <input type="file" id="fileInput" accept=".csv, .xlsx, .json" />
+  </div>
+
+  <!-- Preferences section -->
+  <div class="section">
+    <h2>Select Preferences</h2>
+    <div class="checkbox-group">
+      <label><input type="checkbox" id="brand" value="brand" /> Brand</label>
+      <label><input type="checkbox" id="retail" value="retail" /> Retail</label>
+      <label><input type="checkbox" id="ge" value="ge" /> GE</label>
+      <label><input type="checkbox" id="league" value="league" /> League</label>
+    </div>
+  </div>
+
+  <!-- Raw data paste section -->
+  <div class="section">
+    <h2>Paste Raw Data</h2>
+    <textarea id="rawDataInput" placeholder="Paste your raw .csv, .xlsx, or .json data here..."></textarea>
+    <button id="processRawDataButton">Process Raw Data</button>
+  </div>
+
+  <!-- Output section -->
+  <div class="section">
+    <h2>Output</h2>
+    <pre id="output">Output will appear here...</pre>
+    <button id="copyButton">Copy Output</button>
+  </div>
+
+  <!-- Fallback for missing scripts -->
+  <script>
+    if (typeof parseCSV === 'undefined' || typeof ExcelJS === 'undefined') {
+      document.body.innerHTML = `
+        <h1>Error: Scripts failed to load</h1>
+        <p>Please ensure that all required JavaScript files are properly loaded. Check the console for more details.</p>
+      `;
+    }
+  </script>
+</body>
+</html>
