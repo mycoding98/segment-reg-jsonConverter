@@ -1,18 +1,5 @@
 import ExcelJS from 'exceljs';
 import { parseCSV } from './utils/dataSplitter'; // Ensure correct path to the utility file
-import { validateJson } from './jsonValidator'; // Correct relative path for JSON validation utility
-
-// Schema for JSON validation
-const segmentationSchema = {
-  type: 'object',
-  properties: {
-    Category: { type: 'string' }, // "Brand", "Retail", etc.
-    Segment: { type: 'string' },
-    Value: { type: 'number' },
-  },
-  required: ['Category', 'Segment', 'Value'],
-  additionalProperties: false,
-};
 
 // File input and output elements
 const fileInput = document.getElementById('fileInput') as HTMLInputElement;
@@ -33,7 +20,7 @@ function filterByPreferences(rows: Record<string, any>[]): Record<string, any>[]
   return rows.filter((row) => {
     if (preferences.brand.checked && row['Category'] === 'Brand') return true;
     if (preferences.retail.checked && row['Category'] === 'Retail') return true;
-    if (preferences.ge.checked && row['Category'] === 'GE') return true;
+    if (preferences.ge.checked && row['Category'] === 'GE or Group Event') return true;
     if (preferences.league.checked && row['Category'] === 'League') return true;
     return false;
   });
@@ -75,9 +62,9 @@ fileInput?.addEventListener('change', async (event) => {
         if (rowIndex === 1) return; // Skip the header row
         const rowData: Record<string, any> = {};
         row.eachCell((cell, colIndex) => {
-          const header = worksheet.getRow(1).getCell(colIndex).value || `Column ${colIndex}`;
+          const header = worksheet.getRow(1).getCell(colIndex).value;
           if (typeof header === 'string') {
-            rowData[header] = cell.value;
+            rowData[header] = cell.value; // Assume cell.value is of a compatible type
           }
         });
         rows.push(rowData);
@@ -93,45 +80,68 @@ fileInput?.addEventListener('change', async (event) => {
       // Handle CSV file
       const csvText = await file.text(); // Read CSV file as text
 
-      // Parse CSV using `parseCSV`
-      const rows = parseCSV(csvText, { delimiter: ',', headers: true });
+      try {
+        // Parse CSV using `parseCSV`
+        const rows = parseCSV(csvText, { delimiter: ',', headers: true });
 
-      // Filter rows based on preferences
-      const filteredRows = filterByPreferences(rows);
+        // Filter rows based on preferences
+        const filteredRows = filterByPreferences(rows);
 
-      // Display the filtered JSON data
-      output.textContent = JSON.stringify(filteredRows, null, 2);
+        // Display the filtered JSON data
+        output.textContent = JSON.stringify(filteredRows, null, 2);
+      } catch (err) {
+        const csvError = err as Error; // Explicitly cast to Error
+        output.textContent = `Error processing CSV file: ${csvError.message}`;
+      }
 
     } else if (fileName.endsWith('.json')) {
       // Handle JSON file
       const jsonText = await file.text();
-      const jsonData = JSON.parse(jsonText);
 
-      // Validate JSON against the segmentation schema
-      validateJson(jsonData, segmentationSchema);
+      try {
+        const jsonData = JSON.parse(jsonText);
 
-      // Display the validated JSON
-      output.textContent = JSON.stringify(jsonData, null, 2);
+        // Display the parsed JSON
+        output.textContent = JSON.stringify(jsonData, null, 2);
+      } catch (err) {
+        const jsonError = err as Error; // Explicitly cast to Error
+        output.textContent = `Error processing JSON file: ${jsonError.message}`;
+      }
     }
   } catch (err) {
-    const error = err as Error;
+    const error = err as Error; // Explicitly cast to Error
     output.textContent = `Error processing file: ${error.message}`;
   }
 });
 
 // Attach event listener to the "Process Raw Data" button
+// Attach event listener to the "Process Raw Data" button
 processRawDataButton?.addEventListener('click', () => {
   try {
     const rawData = rawDataInput.value;
-    const jsonData = JSON.parse(rawData);
 
-    // Validate JSON data against the segmentation schema
-    validateJson(jsonData, segmentationSchema);
+    // Try to parse as JSON
+    try {
+      const jsonData = JSON.parse(rawData);
+      output.textContent = JSON.stringify(jsonData, null, 2);
+      return;
+    } catch {
+      // If JSON parsing fails, continue to check other formats
+    }
 
-    // Display the validated JSON
-    output.textContent = JSON.stringify(jsonData, null, 2);
+    // Try to parse as CSV
+    try {
+      const rows = parseCSV(rawData, { delimiter: ',', headers: true });
+      output.textContent = JSON.stringify(rows, null, 2);
+      return;
+    } catch {
+      // If CSV parsing fails, continue to check other formats
+    }
+
+    // If neither JSON nor CSV parsing works, display an error
+    output.textContent = `Unable to process the data. Please ensure it is valid JSON, CSV, or XLSX content.`;
   } catch (err) {
     const error = err as Error;
-    output.textContent = `Validation failed: ${error.message}`;
+    output.textContent = `Error processing raw data: ${error.message}`;
   }
 });

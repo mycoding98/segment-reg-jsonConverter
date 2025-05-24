@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",                        // Compile to ES5 for compatibility with older browsers
+    "target": "esnext",                        // Compile to ES5 for compatibility with older browsers
     "module": "esnext",                     // Use modern ESNext modules for compatibility with bundlers
     "strict": true,                         // Enable all strict type-checking options
     "esModuleInterop": true,                // Add interop for importing CommonJS modules
