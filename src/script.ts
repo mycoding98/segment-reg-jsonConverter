@@ -638,12 +638,10 @@ function updateOutput() {
       value: "",
     };
 
-    const centerCriteria = criteriaChildren.filter(
-      c => c.field === mapping.center.toString() && c.operator === "equals"
-    );
+    // ----- KEY CHANGE: always wrap criteria in an "or" block -----
     const centerOrBlock = {
       type: "or",
-      children: centerCriteria.map(c => ({
+      children: criteriaChildren.map(c => ({
         type: "criteria",
         field: c.field,
         operator: c.operator,
