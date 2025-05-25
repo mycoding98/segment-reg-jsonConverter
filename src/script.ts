@@ -598,6 +598,7 @@ function updateOutput() {
     return;
   }
 
+  // THIS IS THE CRITERIA CSV SECTION YOU WANT TO PATCH:
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
     let brand = "Bowlero";
     let type = "Retail";
@@ -611,10 +612,16 @@ function updateOutput() {
       output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
       return;
     }
-    const criteriaChildren = (_segmentationRows as any[][]).map(row => {
+    const centerCriteria = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
-      return obj;
+      return {
+        type: "criteria",
+        field: obj.field,
+        operator: obj.operator,
+        value: obj.value,
+        FIELD5: obj.FIELD5
+      };
     });
 
     const prefCriteria = {
@@ -630,16 +637,10 @@ function updateOutput() {
       value: "",
     };
 
-    // --- Always wrap center criteria in an "or" block ---
+    // --- CRITICAL: Wrap in a single "or" object ---
     const centerOrBlock = {
       type: "or",
-      children: criteriaChildren.map(c => ({
-        type: "criteria",
-        field: c.field,
-        operator: c.operator,
-        value: c.value,
-        FIELD5: c.FIELD5
-      }))
+      children: centerCriteria
     };
 
     const wrapped = {
