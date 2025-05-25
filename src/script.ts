@@ -294,8 +294,8 @@ function buildJsonStructure(
           operator: "empty",
           value: "",
         },
-        centerOrBlock
-      ],
+        centerOrBlock // always wrap in "or", even if one child
+      ]
     }
   };
   return result;
