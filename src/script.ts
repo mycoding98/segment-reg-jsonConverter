@@ -506,7 +506,12 @@ function parseRawCsvToArray(raw: string): any[][] {
     const sheet = workbook.Sheets[firstSheetName];
     return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
   } else {
-    return raw.trim().split('\n').map(line => line.split(','));
+    const lines = raw.trim().split('\n');
+    let rows = lines.map(line => line.split(','));
+    if (rows.length && rows[0].length === 1 && rows[0][0].includes('\t')) {
+      rows = lines.map(line => line.split('\t'));
+    }
+    return rows;
   }
 }
 
