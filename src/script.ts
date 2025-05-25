@@ -267,13 +267,9 @@ function groupCriteriaForOrBlock(criteriaChildren: any[]): Criteria[] {
     groupMap.get(key)!.push({ ...crit, type: "criteria" });
   }
   const result: Criteria[] = [];
-  for (const [key, group] of groupMap) {
-    if (group.length === 1) {
-      result.push(group[0]);
-    } else {
-      result.push({ type: "or", children: group });
-    }
-  }
+ for (const [key, group] of groupMap) {
+  result.push({ type: "or", children: group });
+}
   return result;
 }
 
