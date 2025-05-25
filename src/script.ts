@@ -259,20 +259,7 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
-// ALWAYS wrap center field/operator pairs in "or" block, even for one!
-function groupCriteriaForOrBlock(criteriaChildren: any[]): Criteria[] {
-  const groupMap = new Map<string, Criteria[]>();
-  for (const crit of criteriaChildren) {
-    const key = `${crit.field}__${crit.operator}`;
-    if (!groupMap.has(key)) groupMap.set(key, []);
-    groupMap.get(key)!.push({ ...crit, type: "criteria" });
-  }
-  const result: Criteria[] = [];
-  for (const [key, group] of groupMap) {
-    result.push({ type: "or", children: group });
-  }
-  return result;
-}
+// groupCriteriaForOrBlock is not needed for criteria CSV anymore
 
 function buildJsonStructure(
   rows: SegmentationRow[],
@@ -287,7 +274,10 @@ function buildJsonStructure(
     FIELD5: row.brand,
   }));
 
-  let groupedCenters = groupCriteriaForOrBlock(orCriteria);
+  const centerOrBlock = {
+    type: "or",
+    children: orCriteria
+  };
 
   const result = {
     name: segmentName,
@@ -306,7 +296,7 @@ function buildJsonStructure(
           operator: "empty",
           value: "",
         },
-        ...groupedCenters
+        centerOrBlock
       ],
     }
   };
@@ -605,6 +595,7 @@ function updateOutput() {
     return;
   }
 
+  // --- MAIN LOGIC FOR ALWAYS "AND" THEN "OR" FOR CRITERIA CSV ---
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
     let brand = "Bowlero";
     let type = "Retail";
@@ -637,11 +628,20 @@ function updateOutput() {
       value: "",
     };
 
-    // Only group center field/operator pairs (e.g. 412/equals)
+    // Always group ALL center field/operator pairs in a single "or" block after unsub
     const centerCriteria = criteriaChildren.filter(
       c => c.field === mapping.center.toString() && c.operator === "equals"
     );
-    const groupedCenters = groupCriteriaForOrBlock(centerCriteria);
+    const centerOrBlock = {
+      type: "or",
+      children: centerCriteria.map(c => ({
+        type: "criteria",
+        field: c.field,
+        operator: c.operator,
+        value: c.value,
+        FIELD5: c.FIELD5
+      }))
+    };
 
     const wrapped = {
       name: `${brand} ${type} Criteria Segment`,
@@ -650,13 +650,14 @@ function updateOutput() {
         children: [
           prefCriteria,
           unsubCriteria,
-          ...groupedCenters
+          centerOrBlock
         ]
       }
     };
     output.textContent = JSON.stringify(wrapped, null, 2);
     return;
   }
+  // --------------------------------------------------------------
 
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length) checkedTypes = ["All"];
