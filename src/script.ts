@@ -259,12 +259,15 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
-// ---- PATCH: Always wrap center criteria in "or" ----
 function buildJsonStructure(
   rows: SegmentationRow[],
   fieldMapping: { pref: number; center: number; unsub: number },
   segmentName: string
 ): object {
+  console.log("[buildJsonStructure] rows length:", rows.length);
+  console.log("[buildJsonStructure] segmentName:", segmentName);
+  console.log("[buildJsonStructure] fieldMapping:", fieldMapping);
+
   const orCriteria = rows.map(row => ({
     type: "criteria",
     field: fieldMapping.center.toString(),
@@ -272,13 +275,15 @@ function buildJsonStructure(
     value: row.id?.toString(),
     FIELD5: row.brand,
   }));
+  console.log("[buildJsonStructure] orCriteria:", orCriteria);
 
   const centerOrBlock = {
     type: "or",
     children: orCriteria
   };
+  console.log("[buildJsonStructure] centerOrBlock:", centerOrBlock);
 
-  return {
+  const result = {
     name: segmentName,
     contactCriteria: {
       type: "and",
@@ -295,10 +300,12 @@ function buildJsonStructure(
           operator: "empty",
           value: "",
         },
-        centerOrBlock // always wrap in "or", even if only one child
+        centerOrBlock
       ]
     }
   };
+  console.log("[buildJsonStructure] result:", result);
+  return result;
 }
 
 function splitOptins(rows: SegmentationRow[]): SegmentationRow[][] {
@@ -501,7 +508,6 @@ fileInput?.addEventListener('change', async (event: Event) => {
 
 function parseRawCsvToArray(raw: string): any[][] {
   const lines = raw.trim().split('\n');
-  // Try all delimiters and pick the one with the most columns
   const delimiters = [',', '\t', ';', '|'];
   let bestRows = lines.map(line => line.split(','));
   let maxCols = bestRows[0].length;
@@ -532,8 +538,7 @@ processRawDataButton?.addEventListener('click', () => {
   if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
     header = header.map((_, idx) => `field${idx + 1}`);
   }
-  // Debugging:
-  console.log('PARSED HEADER:', header);
+  console.log('[processRawDataButton] PARSED HEADER:', header);
 
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
@@ -601,7 +606,6 @@ function updateOutput() {
     return;
   }
 
-  // --- CRITERIA CSV ---
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
     let brand = "Bowlero";
     let type = "Retail";
@@ -634,7 +638,6 @@ function updateOutput() {
       value: "",
     };
 
-    // Always wrap center criteria in an OR!
     const centerCriteria = criteriaChildren.filter(
       c => c.field === mapping.center.toString() && c.operator === "equals"
     );
@@ -660,10 +663,11 @@ function updateOutput() {
         ]
       }
     };
+    console.log("[updateOutput] CRITERIA CSV wrapped output:", wrapped);
     output.textContent = JSON.stringify(wrapped, null, 2);
     return;
   }
-  // --- SEGMENTATION CSV ---
+
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length) checkedTypes = ["All"];
 
@@ -700,11 +704,11 @@ function updateOutput() {
       }
       let name = `${brand} ${type}`;
       if (chunks.length > 1) name += ` ${i + 1}`;
-      // Always use buildJsonStructure which wraps in "or"
       const json = buildJsonStructure(rows, mapping, name);
       outputStr += JSON.stringify(json, null, 2) + "\n\n";
     }
   }
+  console.log("[updateOutput] SEGMENTATION outputStr:", outputStr);
   output.textContent = outputStr.trim();
 }
 
