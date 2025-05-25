@@ -57,32 +57,46 @@ const jsonValidationResult = document.getElementById('jsonValidationResult') as 
 
 function normalizeBrand(brand: string): string {
   const match = BRAND_LIST.find(b => b.toLowerCase() === (brand + '').toLowerCase());
+  console.log("[normalizeBrand] input:", brand, "output:", match || brand);
   return match || brand;
 }
 
 function normalizeType(type: string): string {
-  if (type.toLowerCase() === "ge") return "Group Event";
-  return TYPE_LIST.find(t => t.toLowerCase() === type.toLowerCase()) || type;
+  if (type.toLowerCase() === "ge") {
+    console.log("[normalizeType] input:", type, "output: Group Event");
+    return "Group Event";
+  }
+  const found = TYPE_LIST.find(t => t.toLowerCase() === type.toLowerCase());
+  console.log("[normalizeType] input:", type, "output:", found || type);
+  return found || type;
 }
 
 function readFileAsync(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = e => resolve(e.target?.result as ArrayBuffer);
-    reader.onerror = err => reject(err);
+    reader.onload = e => {
+      console.log("[readFileAsync] file loaded:", file.name);
+      resolve(e.target?.result as ArrayBuffer);
+    };
+    reader.onerror = err => {
+      console.error("[readFileAsync] error reading file:", file.name, err);
+      reject(err);
+    };
     reader.readAsArrayBuffer(file);
   });
 }
 
 function isCriteriaHeader(header: string[]): boolean {
   const norm = header.map(h => String(h).trim().toLowerCase());
-  return (
+  const result = (
     norm.length >= 4 &&
     norm[0] === "type" &&
     norm[1] === "field" &&
     norm[2] === "operator" &&
     norm[3] === "value"
   );
+  console.log("[isCriteriaHeader] norm header:", norm, "result:", result);
+  return result;
 }
 
 function isXlsxOptInHeader(header: string[]): boolean {
@@ -96,25 +110,30 @@ function isXlsxOptInHeader(header: string[]): boolean {
   const hasBrandOrCenter = normHeader.some(cell =>
     cell.includes('brand') || cell.includes('center')
   );
-  return hasOptinId && hasBrandOrCenter;
+  const result = hasOptinId && hasBrandOrCenter;
+  console.log("[isXlsxOptInHeader] norm header:", normHeader, "result:", result);
+  return result;
 }
 
-// Allow regular CSVs with any header (including numbers or arbitrary text)
 function isRegularCsv(header: string[], data: any[][]): boolean {
-  if (isCriteriaHeader(header)) return false;
-  if (isXlsxOptInHeader(header)) return false;
+  const criteria = isCriteriaHeader(header);
+  const xlsxOptIn = isXlsxOptInHeader(header);
   const segmentationColumns = ["id", "brand", "type"];
   const normHeader = header.map(h => String(h).trim().toLowerCase());
-  if (segmentationColumns.every(h => normHeader.includes(h))) return false;
-  return true;
+  const hasSegCols = segmentationColumns.every(h => normHeader.includes(h));
+  const result = !(criteria || xlsxOptIn || hasSegCols);
+  console.log("[isRegularCsv] header:", header, "criteria:", criteria, "xlsxOptIn:", xlsxOptIn, "hasSegCols:", hasSegCols, "result:", result);
+  return result;
 }
 
 function arrayToSimpleJson(header: string[], data: any[][]): object[] {
-  return data.map(row => {
+  const result = data.map(row => {
     const obj: any = {};
     header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
     return obj;
   });
+  console.log("[arrayToSimpleJson] result:", result);
+  return result;
 }
 
 function guessBrandTypeFromFileName(fileName: string): { brand: string, type: string } {
@@ -124,10 +143,10 @@ function guessBrandTypeFromFileName(fileName: string): { brand: string, type: st
     lower.includes(t.toLowerCase().replace(/\s+/g, "")) ||
     lower.includes(t.toLowerCase())
   ) || "Retail";
+  console.log("[guessBrandTypeFromFileName] fileName:", fileName, "brand:", brand, "type:", type);
   return { brand, type };
 }
 
-// NEW: Parse XLSX for all sheets, return { [sheetName]: data[][] }
 async function parseXlsxAllSheets(file: File): Promise<Record<string, any[][]>> {
   const arrayBuffer = await readFileAsync(file);
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -136,10 +155,10 @@ async function parseXlsxAllSheets(file: File): Promise<Record<string, any[][]>> 
     const sheet = workbook.Sheets[sheetName];
     result[sheetName] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
   }
+  console.log("[parseXlsxAllSheets] parsed sheets for file:", file.name, "sheets:", Object.keys(result));
   return result;
 }
 
-// Existing: parseFile for CSV/XLSX (single sheet)
 async function parseFile(file: File): Promise<{data: any[][], fileType: string, isXlsxOptIn: boolean, fileName: string, workbook?: any}> {
   const fileName = file.name.toLowerCase();
   let data: any[][];
@@ -155,13 +174,16 @@ async function parseFile(file: File): Promise<{data: any[][], fileType: string, 
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
     data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    console.log("[parseFile] parsed CSV file:", file.name, "sheet:", firstSheetName, "rows:", data.length);
   } else if (isXlsx) {
     const arrayBuffer = await readFileAsync(file);
     workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
     data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    console.log("[parseFile] parsed XLSX file:", file.name, "sheet:", firstSheetName, "rows:", data.length);
   } else {
+    console.error("[parseFile] Unsupported file format:", fileName);
     throw new Error("Unsupported file format: " + fileName);
   }
 
@@ -176,7 +198,7 @@ async function parseFile(file: File): Promise<{data: any[][], fileType: string, 
     if (lower.includes(type.toLowerCase().replace(/\s+/g, ''))) fileType = type;
     else if (lower.includes(type.toLowerCase())) fileType = type;
   }
-
+  console.log("[parseFile] fileType:", fileType, "isXlsxOptIn:", isXlsxOptIn);
   return { data, fileType, isXlsxOptIn, fileName, workbook };
 }
 
@@ -249,6 +271,7 @@ function arrayToSegmentationRows(
     baseRows = baseRows.map(r => ({ ...r, type: fileType }));
   }
   const rows = baseRows.filter(r => r.id !== "" && r.brand !== "" && r.type !== "");
+  console.log("[arrayToSegmentationRows] header:", header, "rows:", rows);
   return rows;
 }
 
@@ -259,7 +282,31 @@ function getCheckedTypes(): string[] {
   if ((document.getElementById('retail') as HTMLInputElement)?.checked) types.push("Retail");
   if ((document.getElementById('ge') as HTMLInputElement)?.checked) types.push("GE");
   if ((document.getElementById('league') as HTMLInputElement)?.checked) types.push("League");
+  console.log("[getCheckedTypes] checked:", types);
   return types;
+}
+
+// --- Fix for criteria grouping (AND/OR) ---
+
+function groupCriteriaForOrBlock(criteriaChildren: any[]): Criteria[] {
+  // Group by field+operator
+  const groupMap = new Map<string, Criteria[]>();
+  for (const crit of criteriaChildren) {
+    const key = `${crit.field}__${crit.operator}`;
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push({ ...crit, type: "criteria" });
+  }
+  const result: Criteria[] = [];
+  for (const [key, group] of groupMap) {
+    if (group.length === 1) {
+      result.push(group[0]);
+    } else {
+      result.push({ type: "or", children: group });
+      console.log("[groupCriteriaForOrBlock] OR group for key:", key, "criteria:", group);
+    }
+  }
+  console.log("[groupCriteriaForOrBlock] result:", result);
+  return result;
 }
 
 function buildJsonStructure(
@@ -267,7 +314,18 @@ function buildJsonStructure(
   fieldMapping: { pref: number; center: number; unsub: number },
   segmentName: string
 ): object {
-  return {
+  // Always group centers under an "or"
+  const orCriteria: Criteria[] = [];
+  for (const row of rows) {
+    orCriteria.push({
+      type: "criteria",
+      field: fieldMapping.center.toString(),
+      operator: "equals",
+      value: row.id?.toString(),
+      FIELD5: row.brand,
+    });
+  }
+  const result = {
     name: segmentName,
     contactCriteria: {
       type: "and",
@@ -286,25 +344,24 @@ function buildJsonStructure(
         },
         {
           type: "or",
-          children: rows.map((row) => ({
-            type: "criteria",
-            field: fieldMapping.center,
-            operator: "equals",
-            value: row.id?.toString(),
-            FIELD5: row.brand,
-          })),
+          children: orCriteria,
         },
       ],
     }
   };
+  console.log("[buildJsonStructure] result:", result);
+  return result;
 }
 
 function splitOptins(rows: SegmentationRow[]): SegmentationRow[][] {
   if (rows.length < 200) {
+    console.log("[splitOptins] not split, rows:", rows.length);
     return [rows];
   } else {
     const firstChunk = Math.ceil(rows.length / 2);
-    return [rows.slice(0, firstChunk), rows.slice(firstChunk)];
+    const split = [rows.slice(0, firstChunk), rows.slice(firstChunk)];
+    console.log("[splitOptins] split into:", split.map(s => s.length));
+    return split;
   }
 }
 
@@ -332,6 +389,7 @@ function groupAndSplitRows(rows: SegmentationRow[], splitForXlsxOptIn: boolean) 
     const type = groupChunks[0].type;
     const split = splitOptins(groupRows);
     result.set(key, split.map(rows => ({ rows, brand, type })));
+    console.log("[groupAndSplitRows] group:", key, "splits:", split.map(s => s.length));
   }
   return result;
 }
@@ -345,15 +403,16 @@ function clearCsvState() {
   _isXlsxOptIn = false;
   _lastUploadedFileName = undefined;
   if (output) output.textContent = "";
+  console.log("[clearCsvState] state cleared");
 }
 
-// ENHANCED FILE HANDLER: recognize multi-sheet XLSX for segmentation
 fileInput?.addEventListener('change', async (event: Event) => {
   clearCsvState();
   if (!output) return;
   const file = (event.target as HTMLInputElement)?.files?.[0];
   if (!file) {
     output.textContent = "No file selected.";
+    console.log("[fileInput] No file selected.");
     return;
   }
   try {
@@ -362,7 +421,6 @@ fileInput?.addEventListener('change', async (event: Event) => {
     let checkedTypes = getCheckedTypes();
     if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
     if (isXlsx) {
-      // Try all sheets for segmentation
       const sheetsData = await parseXlsxAllSheets(file);
       let segmentationOutputs: string[] = [];
       let foundSegmentation = false;
@@ -423,9 +481,9 @@ fileInput?.addEventListener('change', async (event: Event) => {
       }
       if (foundSegmentation) {
         output.textContent = segmentationOutputs.join('\n').trim();
+        console.log("[fileInput] segmentationOutputs written:", segmentationOutputs.length);
         return;
       }
-      // If no segmentation sheet, fallback to first as regular CSV
       const firstSheetName = Object.keys(sheetsData)[0];
       const data = sheetsData[firstSheetName];
       let header = data[0] as string[];
@@ -438,7 +496,6 @@ fileInput?.addEventListener('change', async (event: Event) => {
       updateOutput();
       return;
     } else {
-      // CSV fallback (single sheet)
       const { data, fileType, isXlsxOptIn, fileName } = await parseFile(file);
       _lastUploadedFileName = file.name;
       let header = data[0] as string[];
@@ -497,6 +554,7 @@ fileInput?.addEventListener('change', async (event: Event) => {
     }
   } catch (error) {
     output.textContent = `Error processing file: ${(error as Error).message}`;
+    console.error("[fileInput] Error processing file:", error);
   }
 });
 
@@ -505,9 +563,13 @@ function parseRawCsvToArray(raw: string): any[][] {
     const workbook = XLSX.read(raw, { type: 'string' });
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
-    return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    const result = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    console.log("[parseRawCsvToArray] parsed result:", result);
+    return result;
   } else {
-    return raw.trim().split('\n').map(line => line.split(','));
+    const result = raw.trim().split('\n').map(line => line.split(','));
+    console.log("[parseRawCsvToArray] fallback parse result:", result);
+    return result;
   }
 }
 
@@ -517,11 +579,13 @@ processRawDataButton?.addEventListener('click', () => {
   const raw = rawDataInput.value.trim();
   if (!raw) {
     output.textContent = "No raw data entered.";
+    console.log("[processRawDataButton] No raw data entered.");
     return;
   }
   let data = parseRawCsvToArray(raw);
   if (!data.length) {
     output.textContent = "Empty or invalid CSV.";
+    console.log("[processRawDataButton] Empty or invalid CSV.");
     return;
   }
   let header = data[0] as string[];
@@ -584,11 +648,16 @@ processRawDataButton?.addEventListener('click', () => {
 });
 
 function updateOutput() {
-  if (!output || !_segmentationRows.length) return;
+  console.log("[updateOutput] called");
+  if (!output || !_segmentationRows.length) {
+    console.log("[updateOutput] No output element or empty rows.");
+    return;
+  }
 
   if (_isRegularCsv && _header && Array.isArray(_segmentationRows)) {
     const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
     output.textContent = JSON.stringify(simpleJson, null, 2);
+    console.log("[updateOutput] Regular CSV output set.");
     return;
   }
 
@@ -603,6 +672,7 @@ function updateOutput() {
     const mapping = fieldMappings[brand]?.[normalizeType(type)];
     if (!mapping) {
       output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
+      console.log("[updateOutput] No mapping found for brand:", brand, "type:", type);
       return;
     }
     const criteriaChildren = (_segmentationRows as any[][]).map(row => {
@@ -610,6 +680,10 @@ function updateOutput() {
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
       return obj;
     });
+
+    // Group criteria for OR block
+    const groupedCriteria = groupCriteriaForOrBlock(criteriaChildren);
+
     const wrapped = {
       name: `${brand} ${type} Criteria Segment`,
       contactCriteria: {
@@ -627,11 +701,12 @@ function updateOutput() {
             operator: "empty",
             value: "",
           },
-          ...criteriaChildren
+          ...groupedCriteria
         ]
       }
     };
     output.textContent = JSON.stringify(wrapped, null, 2);
+    console.log("[updateOutput] Criteria CSV output set.");
     return;
   }
 
@@ -676,6 +751,7 @@ function updateOutput() {
     }
   }
   output.textContent = outputStr.trim();
+  console.log("[updateOutput] Segmentation output set.");
 }
 
 validateJsonButton?.addEventListener('click', () => {
@@ -684,15 +760,18 @@ validateJsonButton?.addEventListener('click', () => {
   if (!raw) {
     jsonValidationResult.textContent = "No input!";
     jsonValidationResult.style.color = "red";
+    console.log("[validateJsonButton] No input!");
     return;
   }
   try {
     const parsed = JSON.parse(raw);
     jsonValidationResult.textContent = "Valid JSON!\n\n" + JSON.stringify(parsed, null, 2);
     jsonValidationResult.style.color = "green";
+    console.log("[validateJsonButton] Valid JSON.");
   } catch (e) {
     jsonValidationResult.textContent = "Invalid JSON: " + (e as Error).message;
     jsonValidationResult.style.color = "red";
+    console.error("[validateJsonButton] Invalid JSON:", (e as Error).message);
   }
 });
 
@@ -700,11 +779,13 @@ document.addEventListener('DOMContentLoaded', () => {
   ['all', 'retail', 'ge', 'league'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', updateOutput);
   });
+  console.log("[DOMContentLoaded] Event listeners added.");
 });
 
 document.getElementById('copyButton')?.addEventListener('click', () => {
   if (output) {
     navigator.clipboard.writeText(output.textContent || '');
+    console.log("[copyButton] Output copied to clipboard.");
   }
 });
 document.getElementById('downloadButton')?.addEventListener('click', () => {
@@ -718,5 +799,6 @@ document.getElementById('downloadButton')?.addEventListener('click', () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    console.log("[downloadButton] Output downloaded as result.json.");
   }
 });
