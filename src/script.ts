@@ -500,19 +500,19 @@ fileInput?.addEventListener('change', async (event: Event) => {
 });
 
 function parseRawCsvToArray(raw: string): any[][] {
-  if (typeof XLSX !== "undefined") {
-    const workbook = XLSX.read(raw, { type: 'string' });
-    const firstSheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[firstSheetName];
-    return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  } else {
-    const lines = raw.trim().split('\n');
-    let rows = lines.map(line => line.split(','));
-    if (rows.length && rows[0].length === 1 && rows[0][0].includes('\t')) {
-      rows = lines.map(line => line.split('\t'));
+  const lines = raw.trim().split('\n');
+  // Try all delimiters and pick the one with the most columns
+  const delimiters = [',', '\t', ';', '|'];
+  let bestRows = lines.map(line => line.split(','));
+  let maxCols = bestRows[0].length;
+  for (const delim of delimiters) {
+    const rows = lines.map(line => line.split(delim));
+    if (rows[0].length > maxCols) {
+      bestRows = rows;
+      maxCols = rows[0].length;
     }
-    return rows;
   }
+  return bestRows;
 }
 
 processRawDataButton?.addEventListener('click', () => {
@@ -532,6 +532,9 @@ processRawDataButton?.addEventListener('click', () => {
   if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
     header = header.map((_, idx) => `field${idx + 1}`);
   }
+  // Debugging:
+  console.log('PARSED HEADER:', header);
+
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
 
