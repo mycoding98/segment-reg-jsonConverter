@@ -264,10 +264,6 @@ function buildJsonStructure(
   fieldMapping: { pref: number; center: number; unsub: number },
   segmentName: string
 ): object {
-  console.log("[buildJsonStructure] rows length:", rows.length);
-  console.log("[buildJsonStructure] segmentName:", segmentName);
-  console.log("[buildJsonStructure] fieldMapping:", fieldMapping);
-
   const orCriteria = rows.map(row => ({
     type: "criteria",
     field: fieldMapping.center.toString(),
@@ -275,13 +271,11 @@ function buildJsonStructure(
     value: row.id?.toString(),
     FIELD5: row.brand,
   }));
-  console.log("[buildJsonStructure] orCriteria:", orCriteria);
 
   const centerOrBlock = {
     type: "or",
     children: orCriteria
   };
-  console.log("[buildJsonStructure] centerOrBlock:", centerOrBlock);
 
   const result = {
     name: segmentName,
@@ -304,7 +298,6 @@ function buildJsonStructure(
       ]
     }
   };
-  console.log("[buildJsonStructure] result:", result);
   return result;
 }
 
@@ -538,7 +531,6 @@ processRawDataButton?.addEventListener('click', () => {
   if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
     header = header.map((_, idx) => `field${idx + 1}`);
   }
-  console.log('[processRawDataButton] PARSED HEADER:', header);
 
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
@@ -638,7 +630,7 @@ function updateOutput() {
       value: "",
     };
 
-    // ----- KEY CHANGE: always wrap criteria in an "or" block -----
+    // --- Always wrap center criteria in an "or" block ---
     const centerOrBlock = {
       type: "or",
       children: criteriaChildren.map(c => ({
@@ -661,7 +653,6 @@ function updateOutput() {
         ]
       }
     };
-    console.log("[updateOutput] CRITERIA CSV wrapped output:", wrapped);
     output.textContent = JSON.stringify(wrapped, null, 2);
     return;
   }
@@ -706,7 +697,6 @@ function updateOutput() {
       outputStr += JSON.stringify(json, null, 2) + "\n\n";
     }
   }
-  console.log("[updateOutput] SEGMENTATION outputStr:", outputStr);
   output.textContent = outputStr.trim();
 }
 
