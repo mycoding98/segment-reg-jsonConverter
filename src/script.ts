@@ -259,6 +259,7 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
+// ALWAYS wrap center field/operator pairs in "or" block, even for one!
 function groupCriteriaForOrBlock(criteriaChildren: any[]): Criteria[] {
   const groupMap = new Map<string, Criteria[]>();
   for (const crit of criteriaChildren) {
@@ -267,9 +268,9 @@ function groupCriteriaForOrBlock(criteriaChildren: any[]): Criteria[] {
     groupMap.get(key)!.push({ ...crit, type: "criteria" });
   }
   const result: Criteria[] = [];
- for (const [key, group] of groupMap) {
-  result.push({ type: "or", children: group });
-}
+  for (const [key, group] of groupMap) {
+    result.push({ type: "or", children: group });
+  }
   return result;
 }
 
