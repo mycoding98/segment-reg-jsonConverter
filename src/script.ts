@@ -259,8 +259,6 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
-// groupCriteriaForOrBlock is not needed for criteria CSV anymore
-
 function buildJsonStructure(
   rows: SegmentationRow[],
   fieldMapping: { pref: number; center: number; unsub: number },
@@ -595,7 +593,7 @@ function updateOutput() {
     return;
   }
 
-  // --- MAIN LOGIC FOR ALWAYS "AND" THEN "OR" FOR CRITERIA CSV ---
+  // --- CRITERIA CSV ---
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
     let brand = "Bowlero";
     let type = "Retail";
@@ -628,7 +626,6 @@ function updateOutput() {
       value: "",
     };
 
-    // Always group ALL center field/operator pairs in a single "or" block after unsub
     const centerCriteria = criteriaChildren.filter(
       c => c.field === mapping.center.toString() && c.operator === "equals"
     );
@@ -657,8 +654,7 @@ function updateOutput() {
     output.textContent = JSON.stringify(wrapped, null, 2);
     return;
   }
-  // --------------------------------------------------------------
-
+  // --- SEGMENTATION CSV ---
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length) checkedTypes = ["All"];
 
@@ -695,6 +691,7 @@ function updateOutput() {
       }
       let name = `${brand} ${type}`;
       if (chunks.length > 1) name += ` ${i + 1}`;
+      // Always use buildJsonStructure which wraps in "or"
       const json = buildJsonStructure(rows, mapping, name);
       outputStr += JSON.stringify(json, null, 2) + "\n\n";
     }
