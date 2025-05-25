@@ -286,8 +286,6 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
-// --- Fix for criteria grouping (AND/OR) ---
-
 function groupCriteriaForOrBlock(criteriaChildren: any[]): Criteria[] {
   // Group by field+operator
   const groupMap = new Map<string, Criteria[]>();
@@ -314,17 +312,18 @@ function buildJsonStructure(
   fieldMapping: { pref: number; center: number; unsub: number },
   segmentName: string
 ): object {
-  // Always group centers under an "or"
-  const orCriteria: Criteria[] = [];
-  for (const row of rows) {
-    orCriteria.push({
-      type: "criteria",
-      field: fieldMapping.center.toString(),
-      operator: "equals",
-      value: row.id?.toString(),
-      FIELD5: row.brand,
-    });
-  }
+  // Build all center criteria first
+  const orCriteria = rows.map(row => ({
+    type: "criteria",
+    field: fieldMapping.center.toString(),
+    operator: "equals",
+    value: row.id?.toString(),
+    FIELD5: row.brand,
+  }));
+
+  // Group center criteria into "or" block if needed
+  let groupedCenters = groupCriteriaForOrBlock(orCriteria);
+
   const result = {
     name: segmentName,
     contactCriteria: {
@@ -342,10 +341,7 @@ function buildJsonStructure(
           operator: "empty",
           value: "",
         },
-        {
-          type: "or",
-          children: orCriteria,
-        },
+        ...groupedCenters
       ],
     }
   };
