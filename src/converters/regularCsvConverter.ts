@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import csvParser from 'csv-parser';
 
 /**
- * Converts a regular CSV file to JSON and writes it to the specified output file.
+ * Converts any CSV file to a JSON array of objects and writes it to the specified output file.
  * @param inputFilePath - The path to the input CSV file.
  * @param outputFilePath - The path to save the output JSON file.
  */
@@ -12,11 +12,11 @@ export async function convertRegularCsv(inputFilePath: string, outputFilePath: s
   try {
     fs.createReadStream(inputFilePath)
       .pipe(csvParser())
-      .on('data', (data) => rows.push(data)) // Parse rows and add them to the array
+      .on('data', (data) => rows.push(data))
       .on('end', () => {
         try {
           fs.writeFileSync(outputFilePath, JSON.stringify(rows, null, 2));
-          console.log(`Regular CSV converted to JSON and saved to ${outputFilePath}`);
+          console.log(`CSV converted to JSON and saved to ${outputFilePath}`);
         } catch (writeError) {
           if (writeError instanceof Error) {
             console.error(`Error writing to file: ${writeError.message}`);

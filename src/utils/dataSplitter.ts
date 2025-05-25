@@ -1,142 +1,182 @@
-import { promises as fs } from 'fs'; // For async file reading
-import * as syncFs from 'fs'; // For synchronous file reading
+// ---- Master Flow ----
+export function setupCSVImportFlow() {
+  // DOM Elements
+  const fileInput = getFileInputElement();
+  const submitButton = getSubmitButtonElement();
+  const outputDiv = getOutputDivElement();
 
-interface CSVOptions {
-  delimiter?: string; // Default is comma (',')
-  headers?: boolean;  // Whether the first row contains headers
-  quoteChar?: string; // Character used for quoting fields, default is double quote ('"')
-}
-
-interface ParsedRow {
-  [key: string]: any; // Dynamic keys for each column
-  FIELD5?: string;    // FIELD5 will be added dynamically
-}
-
-/**
- * Parses a CSV file synchronously and converts it into JSON data.
- * @param filePath - Path to the CSV file
- * @param options - Optional configuration for delimiters, headers, etc.
- * @param computeField5 - Optional function to customize FIELD5 generation
- * @returns ParsedRow[] - Array of JSON objects representing the rows
- * @throws Error if the file is empty or malformed
- */
-export function parseCSV(
-  filePath: string,
-  options: CSVOptions = {},
-  computeField5: (row: ParsedRow) => string = defaultComputeField5
-): ParsedRow[] {
-  const { delimiter = ',', headers = true, quoteChar = '"' } = options;
-
-  // Read the file content synchronously
-  const fileContent = syncFs.readFileSync(filePath, 'utf-8');
-
-  // Parse content into rows
-  return parseCSVContent(fileContent, { delimiter, headers, quoteChar }, computeField5);
-}
-
-/**
- * Parses a CSV file asynchronously and converts it into JSON data.
- * @param filePath - Path to the CSV file
- * @param options - Optional configuration for delimiters, headers, etc.
- * @param computeField5 - Optional function to customize FIELD5 generation
- * @returns Promise<ParsedRow[]> - Array of JSON objects representing the rows
- * @throws Error if the file is empty or malformed
- */
-export async function parseCSVAsync(
-  filePath: string,
-  options: CSVOptions = {},
-  computeField5: (row: ParsedRow) => string = defaultComputeField5
-): Promise<ParsedRow[]> {
-  const { delimiter = ',', headers = true, quoteChar = '"' } = options;
-
-  // Read the file content asynchronously
-  const fileContent = await fs.readFile(filePath, 'utf-8');
-
-  // Parse content into rows
-  return parseCSVContent(fileContent, { delimiter, headers, quoteChar }, computeField5);
-}
-
-// Internal function to parse CSV content into JSON
-function parseCSVContent(
-  content: string,
-  options: CSVOptions,
-  computeField5: (row: ParsedRow) => string
-): ParsedRow[] {
-  const { delimiter = ',', headers = true, quoteChar = '"' } = options;
-
-  // Split the content into rows
-  const rows = content.split('\n').map(row => row.trim()).filter(row => row.length > 0);
-
-  // Handle edge case: empty file
-  if (rows.length === 0) {
-    throw new Error('CSV file is empty.');
+  // Modal Functions
+  function showModal(message: string) {
+    // Replace with a real modal in your app if desired
+    window.alert(message);
   }
 
-  // Extract headers if applicable
-  const headerRow = headers ? rows.shift()! : null;
-  const headerKeys = headerRow ? parseRow(headerRow, delimiter, quoteChar) : [];
+  // Internal data storage for parsed rows
+  let parsedRows: ParsedRow[] = [];
 
-  // Parse rows into JSON
-  const jsonData: ParsedRow[] = rows.map((row) => {
-    const values = parseRow(row, delimiter, quoteChar);
-
-    if (headers) {
-      // Map values to header keys
-      const jsonObject: ParsedRow = {};
-      headerKeys.forEach((key, index) => {
-        jsonObject[key] = values[index] || null; // Assign null for missing values
-      });
-
-      // Add FIELD5 dynamically
-      jsonObject.FIELD5 = computeField5(jsonObject);
-
-      return jsonObject;
-    } else {
-      throw new Error('CSV file must contain headers for proper mapping.');
+  // Input Function
+  function handleFileInput(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) {
+      showModal("No file selected.");
+      return;
     }
+    readCSVFile(file)
+      .then((csvText) => {
+        try {
+          parsedRows = parseCSV(csvText, { headers: true }, [
+            // Example: dynamic segmentation field
+            (row) => { row.FIELD5 = `${row['field'] ?? ""}-${row['value'] ?? ""}`; },
+            // Add more row transforms here if needed
+          ]);
+          showModal("CSV successfully parsed!");
+          displayParsedRows(parsedRows, outputDiv);
+        } catch (err) {
+          showModal("Error parsing CSV: " + (err as Error).message);
+        }
+      })
+      .catch((err) => showModal("Error reading file: " + err));
+  }
+
+  // Button Functions/Listeners
+  if (fileInput) fileInput.addEventListener("change", handleFileInput);
+  if (submitButton) submitButton.addEventListener("click", handleSubmit);
+
+  // Submit Function
+  function handleSubmit() {
+    if (!parsedRows.length) {
+      showModal("Please upload and parse a CSV first!");
+      return;
+    }
+    // Final processing or output logic here
+    showModal(`Submitting ${parsedRows.length} rows!`);
+    // For example, send parsedRows to a server or do something else
+  }
+}
+
+// ---- DOM Elements ----
+function getFileInputElement(): HTMLInputElement | null {
+  return document.getElementById("csv-file-input") as HTMLInputElement | null;
+}
+function getSubmitButtonElement(): HTMLButtonElement | null {
+  return document.getElementById("csv-submit-btn") as HTMLButtonElement | null;
+}
+function getOutputDivElement(): HTMLElement | null {
+  return document.getElementById("csv-output");
+}
+
+// ---- Display Function ----
+function displayParsedRows(rows: ParsedRow[], container: HTMLElement | null) {
+  if (!container) return;
+  container.innerHTML = "";
+  if (!rows.length) {
+    container.textContent = "No rows to display.";
+    return;
+  }
+  // Create a table for the output
+  const table = document.createElement("table");
+  table.style.borderCollapse = "collapse";
+  const headers = Object.keys(rows[0]);
+  const thead = document.createElement("thead");
+  const tr = document.createElement("tr");
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    th.style.border = "1px solid #ccc";
+    th.style.padding = "2px 8px";
+    tr.appendChild(th);
   });
+  thead.appendChild(tr);
+  table.appendChild(thead);
 
-  return jsonData;
+  const tbody = document.createElement("tbody");
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+    headers.forEach(h => {
+      const td = document.createElement("td");
+      td.textContent = row[h];
+      td.style.border = "1px solid #ccc";
+      td.style.padding = "2px 8px";
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
 }
 
-// Helper function to parse a single row
-function parseRow(row: string, delimiter: string, quoteChar: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let insideQuotes = false;
+// ---- CSV Parsing Logic ----
 
-  for (let i = 0; i < row.length; i++) {
-    const char = row[i];
-    const nextChar = row[i + 1];
+export interface CSVOptions {
+  delimiter?: string;
+  headers?: boolean;
+  quoteChar?: string;
+}
+export interface ParsedRow {
+  [key: string]: any;
+}
+export type RowTransform = (row: ParsedRow, index: number) => void;
 
+export function parseCSV(
+  text: string,
+  options: CSVOptions = {},
+  rowTransforms: RowTransform[] = []
+): ParsedRow[] {
+  const delimiter = options.delimiter ?? ",";
+  const headersEnabled = options.headers !== false;
+  const quoteChar = options.quoteChar ?? '"';
+
+  const rows: string[][] = [];
+  let field = "", row: string[] = [];
+  let inQuotes = false, i = 0;
+
+  while (i < text.length) {
+    const char = text[i];
+    const nextChar = text[i + 1];
     if (char === quoteChar) {
-      if (insideQuotes && nextChar === quoteChar) {
-        // Escaped quote
-        current += quoteChar;
-        i++; // Skip next character
+      if (inQuotes && nextChar === quoteChar) {
+        field += quoteChar; i++;
       } else {
-        // Toggle insideQuotes
-        insideQuotes = !insideQuotes;
+        inQuotes = !inQuotes;
       }
-    } else if (char === delimiter && !insideQuotes) {
-      // End of field
-      result.push(current.trim());
-      current = '';
+    } else if (char === delimiter && !inQuotes) {
+      row.push(field); field = "";
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') i++;
+      row.push(field); rows.push(row); row = []; field = "";
     } else {
-      // Append character to current field
-      current += char;
+      field += char;
     }
+    i++;
   }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  if (!rows.length) throw new Error("CSV input is empty or invalid.");
 
-  // Add the last field
-  result.push(current.trim());
-
-  return result;
+  let output: ParsedRow[] = [];
+  if (headersEnabled) {
+    const headerKeys = rows[0];
+    output = rows.slice(1).map((values, idx) => {
+      const obj: ParsedRow = {};
+      headerKeys.forEach((key, i) => (obj[key] = values[i] ?? ""));
+      rowTransforms.forEach(fn => fn(obj, idx));
+      return obj;
+    });
+  } else {
+    output = rows.map((values, idx) => {
+      const arr: ParsedRow = [...values];
+      rowTransforms.forEach(fn => fn(arr, idx));
+      return arr;
+    });
+  }
+  return output;
 }
 
-// Default FIELD5 computation
-function defaultComputeField5(row: ParsedRow): string {
-  const field = row['field'] || '';
-  const value = row['value'] || '';
-  return `${field}-${value}`;
+// ---- File Reading Helper ----
+function readCSVFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target?.result as string);
+    reader.onerror = e => reject(e);
+    reader.readAsText(file);
+  });
 }
