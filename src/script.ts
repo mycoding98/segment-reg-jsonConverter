@@ -259,6 +259,7 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
+// ---- PATCH: Always wrap center criteria in "or" ----
 function buildJsonStructure(
   rows: SegmentationRow[],
   fieldMapping: { pref: number; center: number; unsub: number },
@@ -277,7 +278,7 @@ function buildJsonStructure(
     children: orCriteria
   };
 
-  const result = {
+  return {
     name: segmentName,
     contactCriteria: {
       type: "and",
@@ -294,11 +295,10 @@ function buildJsonStructure(
           operator: "empty",
           value: "",
         },
-        centerOrBlock // always wrap in "or", even if one child
+        centerOrBlock // always wrap in "or", even if only one child
       ]
     }
   };
-  return result;
 }
 
 function splitOptins(rows: SegmentationRow[]): SegmentationRow[][] {
