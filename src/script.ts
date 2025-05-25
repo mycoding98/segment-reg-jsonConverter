@@ -592,19 +592,15 @@ function updateOutput() {
     return;
   }
 
-  // CRITERIA CSV: PATCHED TO FIX TSC ERRORS
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
-    // Get brand and center field from the CSV row
+    // Get brand and field from the first row
     const firstRow = _segmentationRows[0] as any[];
     let brand = "";
     let field = "";
-    let type = "";
-    let value = "";
     for (let i = 0; i < _header.length; i++) {
       const header = (_header[i] + "").trim().toLowerCase();
-      if (header === "field5" || header === "brand") brand = (firstRow as any[])[i];
-      if (header === "field") field = (firstRow as any[])[i];
-      if (header === "value") value = (firstRow as any[])[i];
+      if (header === "field5" || header === "brand") brand = firstRow[i];
+      if (header === "field") field = firstRow[i];
     }
     brand = brand || "Bowlero";
 
@@ -616,24 +612,23 @@ function updateOutput() {
         break;
       }
     }
-    type = foundType || "Retail";
-
+    const type = foundType || "Retail";
     const mapping = fieldMappings[brand]?.[type];
     if (!mapping) {
       output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
       return;
     }
 
-    // Build criteria children from all rows
+    // Compose all center criteria, ensuring FIELD5 is present as a string
     const centerCriteria = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
       return {
         type: "criteria",
-        field: obj.field,
+        field: obj.field !== undefined ? (typeof obj.field === "string" ? obj.field : obj.field.toString()) : "",
         operator: obj.operator,
-        value: obj.value,
-        FIELD5: obj.FIELD5 || obj.brand
+        value: obj.value !== undefined ? (typeof obj.value === "string" ? obj.value : obj.value.toString()) : "",
+        FIELD5: (obj.FIELD5 ?? obj.brand ?? brand)?.toString()
       };
     });
 
@@ -666,6 +661,11 @@ function updateOutput() {
     return;
   }
 
+  if (_isRegularCsv && _header && Array.isArray(_segmentationRows)) {
+    const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
+    output.textContent = JSON.stringify(simpleJson, null, 2);
+    return;
+  }
 
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length) checkedTypes = ["All"];
