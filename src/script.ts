@@ -634,6 +634,7 @@ function updateOutput() {
       value: "",
     };
 
+    // Always wrap center criteria in an OR!
     const centerCriteria = criteriaChildren.filter(
       c => c.field === mapping.center.toString() && c.operator === "equals"
     );
