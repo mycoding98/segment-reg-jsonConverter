@@ -592,6 +592,7 @@ function updateOutput() {
     return;
   }
 
+  // --- ENSURE CRITERIA CSV ALWAYS OUTPUTS AND/OR STRUCTURE ---
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
     // Get brand and field from the first row
     const firstRow = _segmentationRows[0] as any[];
@@ -619,7 +620,7 @@ function updateOutput() {
       return;
     }
 
-    // Compose all center criteria, ensuring FIELD5 is present as a string
+    // Compose all center criteria, FORCING FIELD5 as brand string always
     const centerCriteria = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
@@ -628,10 +629,17 @@ function updateOutput() {
         field: obj.field !== undefined ? (typeof obj.field === "string" ? obj.field : obj.field.toString()) : "",
         operator: obj.operator,
         value: obj.value !== undefined ? (typeof obj.value === "string" ? obj.value : obj.value.toString()) : "",
-        FIELD5: (obj.FIELD5 ?? obj.brand ?? brand)?.toString()
+        FIELD5: brand.toString()
       };
     });
 
+    // Always wrap center criteria in a single OR block
+    const centerOrBlock = {
+      type: "or",
+      children: centerCriteria
+    };
+
+    // Pref/unsub criteria
     const prefCriteria = {
       type: "criteria",
       field: mapping.pref.toString(),
@@ -644,11 +652,8 @@ function updateOutput() {
       operator: "empty",
       value: ""
     };
-    const centerOrBlock = {
-      type: "or",
-      children: centerCriteria
-    };
 
+    // ALWAYS produce this structure, even if empty/partial
     const wrapped = {
       type: "and",
       children: [
