@@ -592,26 +592,39 @@ function updateOutput() {
     return;
   }
 
-  if (_isRegularCsv && _header && Array.isArray(_segmentationRows)) {
-    const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
-    output.textContent = JSON.stringify(simpleJson, null, 2);
-    return;
-  }
-
-  // THIS IS THE CRITERIA CSV SECTION YOU WANT TO PATCH:
+  // CRITERIA CSV: PATCHED TO FIX TSC ERRORS
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
-    let brand = "Bowlero";
-    let type = "Retail";
-    if (_lastUploadedFileName) {
-      const guess = guessBrandTypeFromFileName(_lastUploadedFileName);
-      brand = guess.brand;
-      type = guess.type;
+    // Get brand and center field from the CSV row
+    const firstRow = _segmentationRows[0] as any[];
+    let brand = "";
+    let field = "";
+    let type = "";
+    let value = "";
+    for (let i = 0; i < _header.length; i++) {
+      const header = (_header[i] + "").trim().toLowerCase();
+      if (header === "field5" || header === "brand") brand = (firstRow as any[])[i];
+      if (header === "field") field = (firstRow as any[])[i];
+      if (header === "value") value = (firstRow as any[])[i];
     }
-    const mapping = fieldMappings[brand]?.[normalizeType(type)];
+    brand = brand || "Bowlero";
+
+    // Guess type from field mapping (reverse lookup)
+    let foundType = "";
+    for (const t of Object.keys(fieldMappings[brand] || {})) {
+      if (fieldMappings[brand][t].center.toString() === field.toString()) {
+        foundType = t;
+        break;
+      }
+    }
+    type = foundType || "Retail";
+
+    const mapping = fieldMappings[brand]?.[type];
     if (!mapping) {
       output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
       return;
     }
+
+    // Build criteria children from all rows
     const centerCriteria = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
@@ -620,7 +633,7 @@ function updateOutput() {
         field: obj.field,
         operator: obj.operator,
         value: obj.value,
-        FIELD5: obj.FIELD5
+        FIELD5: obj.FIELD5 || obj.brand
       };
     });
 
@@ -628,35 +641,31 @@ function updateOutput() {
       type: "criteria",
       field: mapping.pref.toString(),
       operator: "equals",
-      value: "True",
+      value: "True"
     };
     const unsubCriteria = {
       type: "criteria",
       field: mapping.unsub.toString(),
       operator: "empty",
-      value: "",
+      value: ""
     };
-
-    // --- CRITICAL: Wrap in a single "or" object ---
     const centerOrBlock = {
       type: "or",
       children: centerCriteria
     };
 
     const wrapped = {
-      name: `${brand} ${type} Criteria Segment`,
-      contactCriteria: {
-        type: "and",
-        children: [
-          prefCriteria,
-          unsubCriteria,
-          centerOrBlock
-        ]
-      }
+      type: "and",
+      children: [
+        prefCriteria,
+        unsubCriteria,
+        centerOrBlock
+      ]
     };
     output.textContent = JSON.stringify(wrapped, null, 2);
     return;
   }
+
 
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length) checkedTypes = ["All"];
