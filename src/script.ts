@@ -587,88 +587,97 @@ processRawDataButton?.addEventListener('click', () => {
 function updateOutput() {
   if (!output || !_segmentationRows.length) return;
 
-  // Prepare rows as objects with field, operator, value, FIELD5
-  let criteriaRows: any[] = [];
+  // Handle criteria CSVs (type,field,operator,value)
   if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
-    criteriaRows = (_segmentationRows as any[][]).map(row => {
-      const obj: any = {};
-      _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
-      // Always ensure FIELD5 is present
-      obj.FIELD5 = obj.brand || obj.FIELD5 || "Bowlero";
-      return obj;
-    });
-  } else if (_header && Array.isArray(_segmentationRows)) {
-    // Treat segmentation CSVs as criteria rows
-    criteriaRows = (_segmentationRows as any[][]).map(row => {
+    // Convert each row to a criteria object, always including FIELD5
+    const criteriaRows = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
       obj.FIELD5 = obj.brand || obj.FIELD5 || "Bowlero";
-      // For segmentation, guess field/operator/value if not present
-      if (!obj.field && obj.id) obj.field = obj.id;
-      if (!obj.operator) obj.operator = "equals";
-      if (!obj.value && obj.id) obj.value = obj.id;
       return obj;
     });
+
+    // Guess brand and type from first row or fallback
+    let brand = criteriaRows[0]?.FIELD5 || "Bowlero";
+    let field = criteriaRows[0]?.field || "";
+    // Guess type from field mapping (reverse lookup)
+    let foundType = "";
+    for (const t of Object.keys(fieldMappings[brand] || {})) {
+      if (fieldMappings[brand][t].center.toString() === field.toString()) {
+        foundType = t;
+        break;
+      }
+    }
+    const type = foundType || "Retail";
+    const mapping = fieldMappings[brand]?.[type];
+    if (!mapping) {
+      output.textContent = "// Could not determine pref/unsub mapping for this CSV";
+      return;
+    }
+
+    // Build the always-wrapped structure
+    const prefCriteria = {
+      type: "criteria",
+      field: mapping.pref.toString(),
+      operator: "equals",
+      value: "True"
+    };
+    const unsubCriteria = {
+      type: "criteria",
+      field: mapping.unsub.toString(),
+      operator: "empty",
+      value: ""
+    };
+    const centerOrBlock = {
+      type: "or",
+      children: criteriaRows.map(obj => ({
+        type: "criteria",
+        field: obj.field?.toString() || "",
+        operator: obj.operator || "equals",
+        value: obj.value?.toString() || "",
+        FIELD5: obj.FIELD5
+      }))
+    };
+
+    const wrapped = {
+      type: "and",
+      children: [
+        prefCriteria,
+        unsubCriteria,
+        centerOrBlock
+      ]
+    };
+    output.textContent = JSON.stringify(wrapped, null, 2);
+    return;
+  }
+
+  // Handle segmentation CSVs and XLSX
+  let rows: SegmentationRow[] = [];
+  if (_header && Array.isArray(_segmentationRows)) {
+    rows = arrayToSegmentationRows(_header, _segmentationRows as any[][], _fileType, _isXlsxOptIn);
   } else {
     output.textContent = "// No valid data";
     return;
   }
 
-  // Guess brand and type from first row or fallback
-  let brand = "";
-  let field = "";
-  if (criteriaRows.length) {
-    brand = criteriaRows[0].FIELD5 || "Bowlero";
-    field = criteriaRows[0].field || "";
-  }
-  // Guess type from field mapping (reverse lookup)
-  let foundType = "";
-  for (const t of Object.keys(fieldMappings[brand] || {})) {
-    if (fieldMappings[brand][t].center.toString() === field.toString()) {
-      foundType = t;
-      break;
+  const grouped = groupAndSplitRows(rows, _isXlsxOptIn);
+
+  let outputStr = "";
+  for (const [key, chunks] of grouped.entries()) {
+    for (let i = 0; i < chunks.length; i++) {
+      const { rows, brand, type } = chunks[i];
+      const mapping = fieldMappings[brand]?.[normalizeType(type)];
+      if (!mapping) {
+        outputStr += `// No mapping for brand "${brand}" and type "${type}"\n`;
+        continue;
+      }
+      let name = `${brand} ${type}`;
+      if (chunks.length > 1) name += ` ${i + 1}`;
+      const json = buildJsonStructure(rows, mapping, name);
+      outputStr += JSON.stringify(json, null, 2) + "\n\n";
     }
   }
-  const type = foundType || "Retail";
-  const mapping = fieldMappings[brand]?.[type];
-  if (!mapping) {
-    output.textContent = "// Could not determine pref/unsub mapping for this CSV";
-    return;
-  }
-
-  // Build the always-wrapped structure
-  const prefCriteria = {
-    type: "criteria",
-    field: mapping.pref.toString(),
-    operator: "equals",
-    value: "True"
-  };
-  const unsubCriteria = {
-    type: "criteria",
-    field: mapping.unsub.toString(),
-    operator: "empty",
-    value: ""
-  };
-  const centerOrBlock = {
-    type: "or",
-    children: criteriaRows.map(obj => ({
-      type: "criteria",
-      field: obj.field?.toString() || "",
-      operator: obj.operator || "equals",
-      value: obj.value?.toString() || "",
-      FIELD5: obj.FIELD5
-    }))
-  };
-
-  const wrapped = {
-    type: "and",
-    children: [
-      prefCriteria,
-      unsubCriteria,
-      centerOrBlock
-    ]
-  };
-  output.textContent = JSON.stringify(wrapped, null, 2);
+  output.textContent = outputStr.trim();
 }
 
 validateJsonButton?.addEventListener('click', () => {

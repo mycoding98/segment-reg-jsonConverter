@@ -766,7 +766,8 @@ function normalizeBrand(brand) {
 }
 function normalizeType(type) {
     if (type.toLowerCase() === "ge") return "Group Event";
-    return TYPE_LIST.find((t)=>t.toLowerCase() === type.toLowerCase()) || type;
+    const found = TYPE_LIST.find((t)=>t.toLowerCase() === type.toLowerCase());
+    return found || type;
 }
 function readFileAsync(file) {
     return new Promise((resolve, reject)=>{
@@ -786,18 +787,17 @@ function isXlsxOptInHeader(header) {
     const hasBrandOrCenter = normHeader.some((cell)=>cell.includes('brand') || cell.includes('center'));
     return hasOptinId && hasBrandOrCenter;
 }
-// Allow regular CSVs with any header (including numbers or arbitrary text)
 function isRegularCsv(header, data) {
-    if (isCriteriaHeader(header)) return false;
-    if (isXlsxOptInHeader(header)) return false;
+    const criteria = isCriteriaHeader(header);
+    const xlsxOptIn = isXlsxOptInHeader(header);
     const segmentationColumns = [
         "id",
         "brand",
         "type"
     ];
     const normHeader = header.map((h)=>String(h).trim().toLowerCase());
-    if (segmentationColumns.every((h)=>normHeader.includes(h))) return false;
-    return true;
+    const hasSegCols = segmentationColumns.every((h)=>normHeader.includes(h));
+    return !(criteria || xlsxOptIn || hasSegCols);
 }
 function arrayToSimpleJson(header, data) {
     return data.map((row)=>{
@@ -817,7 +817,6 @@ function guessBrandTypeFromFileName(fileName) {
         type
     };
 }
-// NEW: Parse XLSX for all sheets, return { [sheetName]: data[][] }
 async function parseXlsxAllSheets(file) {
     const arrayBuffer = await readFileAsync(file);
     const workbook = XLSX.read(arrayBuffer, {
@@ -833,7 +832,6 @@ async function parseXlsxAllSheets(file) {
     }
     return result;
 }
-// Existing: parseFile for CSV/XLSX (single sheet)
 async function parseFile(file) {
     const fileName = file.name.toLowerCase();
     let data;
@@ -949,7 +947,18 @@ function getCheckedTypes() {
     return types;
 }
 function buildJsonStructure(rows, fieldMapping, segmentName) {
-    return {
+    const orCriteria = rows.map((row)=>({
+            type: "criteria",
+            field: fieldMapping.center.toString(),
+            operator: "equals",
+            value: row.id?.toString(),
+            FIELD5: row.brand
+        }));
+    const centerOrBlock = {
+        type: "or",
+        children: orCriteria
+    };
+    const result = {
         name: segmentName,
         contactCriteria: {
             type: "and",
@@ -966,19 +975,11 @@ function buildJsonStructure(rows, fieldMapping, segmentName) {
                     operator: "empty",
                     value: ""
                 },
-                {
-                    type: "or",
-                    children: rows.map((row)=>({
-                            type: "criteria",
-                            field: fieldMapping.center,
-                            operator: "equals",
-                            value: row.id?.toString(),
-                            FIELD5: row.brand
-                        }))
-                }
+                centerOrBlock
             ]
         }
     };
+    return result;
 }
 function splitOptins(rows) {
     if (rows.length < 200) return [
@@ -986,10 +987,11 @@ function splitOptins(rows) {
     ];
     else {
         const firstChunk = Math.ceil(rows.length / 2);
-        return [
+        const split = [
             rows.slice(0, firstChunk),
             rows.slice(firstChunk)
         ];
+        return split;
     }
 }
 function groupAndSplitRows(rows, splitForXlsxOptIn) {
@@ -1035,7 +1037,6 @@ function clearCsvState() {
     _lastUploadedFileName = undefined;
     if (output) output.textContent = "";
 }
-// ENHANCED FILE HANDLER: recognize multi-sheet XLSX for segmentation
 fileInput?.addEventListener('change', async (event)=>{
     clearCsvState();
     if (!output) return;
@@ -1050,7 +1051,6 @@ fileInput?.addEventListener('change', async (event)=>{
         let checkedTypes = getCheckedTypes();
         if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
         if (isXlsx) {
-            // Try all sheets for segmentation
             const sheetsData = await parseXlsxAllSheets(file);
             let segmentationOutputs = [];
             let foundSegmentation = false;
@@ -1106,7 +1106,6 @@ fileInput?.addEventListener('change', async (event)=>{
                 output.textContent = segmentationOutputs.join('\n').trim();
                 return;
             }
-            // If no segmentation sheet, fallback to first as regular CSV
             const firstSheetName = Object.keys(sheetsData)[0];
             const data = sheetsData[firstSheetName];
             let header = data[0];
@@ -1117,7 +1116,6 @@ fileInput?.addEventListener('change', async (event)=>{
             updateOutput();
             return;
         } else {
-            // CSV fallback (single sheet)
             const { data, fileType, isXlsxOptIn, fileName } = await parseFile(file);
             _lastUploadedFileName = file.name;
             let header = data[0];
@@ -1173,17 +1171,23 @@ fileInput?.addEventListener('change', async (event)=>{
     }
 });
 function parseRawCsvToArray(raw) {
-    if (typeof XLSX !== "undefined") {
-        const workbook = XLSX.read(raw, {
-            type: 'string'
-        });
-        const firstSheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[firstSheetName];
-        return XLSX.utils.sheet_to_json(sheet, {
-            header: 1,
-            defval: ""
-        });
-    } else return raw.trim().split('\n').map((line)=>line.split(','));
+    const lines = raw.trim().split('\n');
+    const delimiters = [
+        ',',
+        '\t',
+        ';',
+        '|'
+    ];
+    let bestRows = lines.map((line)=>line.split(','));
+    let maxCols = bestRows[0].length;
+    for (const delim of delimiters){
+        const rows = lines.map((line)=>line.split(delim));
+        if (rows[0].length > maxCols) {
+            bestRows = rows;
+            maxCols = rows[0].length;
+        }
+    }
+    return bestRows;
 }
 processRawDataButton?.addEventListener('click', ()=>{
     clearCsvState();
@@ -1251,72 +1255,74 @@ processRawDataButton?.addEventListener('click', ()=>{
 });
 function updateOutput() {
     if (!output || !_segmentationRows.length) return;
-    if (_isRegularCsv && _header && Array.isArray(_segmentationRows)) {
-        const simpleJson = arrayToSimpleJson(_header, _segmentationRows);
-        output.textContent = JSON.stringify(simpleJson, null, 2);
-        return;
-    }
+    // Handle criteria CSVs (type,field,operator,value)
     if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
-        let brand = "Bowlero";
-        let type = "Retail";
-        if (_lastUploadedFileName) {
-            const guess = guessBrandTypeFromFileName(_lastUploadedFileName);
-            brand = guess.brand;
-            type = guess.type;
-        }
-        const mapping = fieldMappings[brand]?.[normalizeType(type)];
-        if (!mapping) {
-            output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
-            return;
-        }
-        const criteriaChildren = _segmentationRows.map((row)=>{
+        // Convert each row to a criteria object, always including FIELD5
+        const criteriaRows = _segmentationRows.map((row)=>{
             const obj = {};
             _header.forEach((h, i)=>{
                 if (h && row[i] !== undefined) obj[h] = row[i];
             });
+            obj.FIELD5 = obj.brand || obj.FIELD5 || "Bowlero";
             return obj;
         });
+        // Guess brand and type from first row or fallback
+        let brand = criteriaRows[0]?.FIELD5 || "Bowlero";
+        let field = criteriaRows[0]?.field || "";
+        // Guess type from field mapping (reverse lookup)
+        let foundType = "";
+        for (const t of Object.keys(fieldMappings[brand] || {}))if (fieldMappings[brand][t].center.toString() === field.toString()) {
+            foundType = t;
+            break;
+        }
+        const type = foundType || "Retail";
+        const mapping = fieldMappings[brand]?.[type];
+        if (!mapping) {
+            output.textContent = "// Could not determine pref/unsub mapping for this CSV";
+            return;
+        }
+        // Build the always-wrapped structure
+        const prefCriteria = {
+            type: "criteria",
+            field: mapping.pref.toString(),
+            operator: "equals",
+            value: "True"
+        };
+        const unsubCriteria = {
+            type: "criteria",
+            field: mapping.unsub.toString(),
+            operator: "empty",
+            value: ""
+        };
+        const centerOrBlock = {
+            type: "or",
+            children: criteriaRows.map((obj)=>({
+                    type: "criteria",
+                    field: obj.field?.toString() || "",
+                    operator: obj.operator || "equals",
+                    value: obj.value?.toString() || "",
+                    FIELD5: obj.FIELD5
+                }))
+        };
         const wrapped = {
-            name: `${brand} ${type} Criteria Segment`,
-            contactCriteria: {
-                type: "and",
-                children: [
-                    {
-                        type: "criteria",
-                        field: mapping.pref.toString(),
-                        operator: "equals",
-                        value: "True"
-                    },
-                    {
-                        type: "criteria",
-                        field: mapping.unsub.toString(),
-                        operator: "empty",
-                        value: ""
-                    },
-                    ...criteriaChildren
-                ]
-            }
+            type: "and",
+            children: [
+                prefCriteria,
+                unsubCriteria,
+                centerOrBlock
+            ]
         };
         output.textContent = JSON.stringify(wrapped, null, 2);
         return;
     }
-    let checkedTypes = getCheckedTypes();
-    if (!checkedTypes.length) checkedTypes = [
-        "All"
-    ];
-    let filteredRows = _segmentationRows;
-    if (filteredRows.length > 0 && filteredRows.every((r)=>!r.type) && checkedTypes.length > 0 && !checkedTypes.includes("All")) {
-        let expandedRows = [];
-        for (const type of checkedTypes)for (const row of filteredRows)expandedRows.push({
-            ...row,
-            type
-        });
-        filteredRows = expandedRows;
-    } else if (!checkedTypes.includes("All") && checkedTypes.length > 0) {
-        const normalizedTypes = checkedTypes.map(normalizeType);
-        filteredRows = filteredRows.filter((r)=>normalizedTypes.includes(normalizeType(r.type)));
+    // Handle segmentation CSVs and XLSX
+    let rows = [];
+    if (_header && Array.isArray(_segmentationRows)) rows = arrayToSegmentationRows(_header, _segmentationRows, _fileType, _isXlsxOptIn);
+    else {
+        output.textContent = "// No valid data";
+        return;
     }
-    const grouped = groupAndSplitRows(filteredRows, _isXlsxOptIn);
+    const grouped = groupAndSplitRows(rows, _isXlsxOptIn);
     let outputStr = "";
     for (const [key, chunks] of grouped.entries())for(let i = 0; i < chunks.length; i++){
         const { rows, brand, type } = chunks[i];
