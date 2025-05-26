@@ -13,45 +13,41 @@ export function arrayToSegmentationRows(
 }
 
 export function buildSegmentationJson({
-  name,
   prefField,
   unsubField,
   centerField,
   rows
 }: {
-  name: string,
   prefField: string|number,
   unsubField: string|number,
   centerField: string|number,
   rows: { id: string|number, brand: string, type: string }[]
 }) {
   return {
-    name,
-    contactCriteria: {
-      type: "and",
-      children: [
-        {
+    type: "and",
+    children: [
+      {
+        type: "criteria",
+        field: String(prefField),
+        operator: "equals",
+        value: "True"
+      },
+      {
+        type: "criteria",
+        field: String(unsubField),
+        operator: "empty",
+        value: ""
+      },
+      {
+        type: "or",
+        children: rows.map(row => ({
           type: "criteria",
-          field: String(prefField),
+          field: String(centerField),
           operator: "equals",
-          value: "True"
-        },
-        {
-          type: "criteria",
-          field: String(unsubField),
-          operator: "empty",
-          value: ""
-        },
-        {
-          type: "or",
-          children: rows.map(row => ({
-            type: "criteria",
-            field: String(centerField),
-            operator: "equals",
-            value: String(row.id)
-          }))
-        }
-      ]
-    }
+          value: String(row.id),
+          FIELD5: row.brand // <-- Add FIELD5 here
+        }))
+      }
+    ]
   };
 }
