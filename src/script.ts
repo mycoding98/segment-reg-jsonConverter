@@ -587,13 +587,26 @@ processRawDataButton?.addEventListener('click', () => {
 function updateOutput() {
   if (!output || !_segmentationRows.length) return;
 
-  // Handle criteria CSVs (type,field,operator,value)
-  if (_isCriteriaCsv && _header && Array.isArray(_segmentationRows)) {
-    // Convert each row to a criteria object, always including FIELD5
+  // Check if this is a segmentation CSV (type,field,operator,value or id,brand,type)
+  const normHeader = _header.map(h => String(h).trim().toLowerCase());
+  const isSegmentation =
+    (normHeader.length >= 4 &&
+      normHeader[0] === "type" &&
+      normHeader[1] === "field" &&
+      normHeader[2] === "operator" &&
+      normHeader[3] === "value") ||
+    (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"));
+
+  if (isSegmentation && Array.isArray(_segmentationRows)) {
+    // Always output the nested structure with FIELD5 and "or"
     const criteriaRows = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
       obj.FIELD5 = obj.brand || obj.FIELD5 || "Bowlero";
+      // Fallbacks for id/field
+      if (!obj.field && obj.id) obj.field = obj.id;
+      if (!obj.operator) obj.operator = "equals";
+      if (!obj.value && obj.id) obj.value = obj.id;
       return obj;
     });
 
@@ -651,33 +664,14 @@ function updateOutput() {
     return;
   }
 
-  // Handle segmentation CSVs and XLSX
-  let rows: SegmentationRow[] = [];
+  // Otherwise, treat as a regular CSV: output as array of objects
   if (_header && Array.isArray(_segmentationRows)) {
-    rows = arrayToSegmentationRows(_header, _segmentationRows as any[][], _fileType, _isXlsxOptIn);
-  } else {
-    output.textContent = "// No valid data";
+    const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
+    output.textContent = JSON.stringify(simpleJson, null, 2);
     return;
   }
 
-  const grouped = groupAndSplitRows(rows, _isXlsxOptIn);
-
-  let outputStr = "";
-  for (const [key, chunks] of grouped.entries()) {
-    for (let i = 0; i < chunks.length; i++) {
-      const { rows, brand, type } = chunks[i];
-      const mapping = fieldMappings[brand]?.[normalizeType(type)];
-      if (!mapping) {
-        outputStr += `// No mapping for brand "${brand}" and type "${type}"\n`;
-        continue;
-      }
-      let name = `${brand} ${type}`;
-      if (chunks.length > 1) name += ` ${i + 1}`;
-      const json = buildJsonStructure(rows, mapping, name);
-      outputStr += JSON.stringify(json, null, 2) + "\n\n";
-    }
-  }
-  output.textContent = outputStr.trim();
+  output.textContent = "// No valid data";
 }
 
 validateJsonButton?.addEventListener('click', () => {
