@@ -583,7 +583,7 @@ processRawDataButton?.addEventListener('click', () => {
 function updateOutput() {
   if (!output || !_segmentationRows.length) return;
 
-  // Check if this is a segmentation CSV (type,field,operator,value or id,brand,type)
+  // Normalize header for segmentation detection
   const normHeader = _header.map(h => String(h).trim().toLowerCase());
   const isSegmentation =
     (normHeader.length >= 4 &&
@@ -594,7 +594,7 @@ function updateOutput() {
     (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"));
 
   if (isSegmentation && Array.isArray(_segmentationRows)) {
-    // Always output the nested structure with FIELD5 and "or"
+    // Build criteriaRows with FIELD5 always present
     const criteriaRows = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
@@ -606,7 +606,7 @@ function updateOutput() {
       return obj;
     });
 
-    // Guess brand and type from first row or fallback
+    // Use FIELD5 from first row or fallback
     let brand = criteriaRows[0]?.FIELD5 || "Bowlero";
     let field = criteriaRows[0]?.field || "";
     // Guess type from field mapping (reverse lookup)
