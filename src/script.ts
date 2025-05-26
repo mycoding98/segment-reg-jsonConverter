@@ -590,28 +590,30 @@ processRawDataButton?.addEventListener('click', () => {
 function updateOutput() {
   if (!output || !_segmentationRows.length) return;
 
-  const normHeader = _header.map(h => String(h).trim().toLowerCase());
-  const isSegmentation =
-    (normHeader.length >= 4 &&
-      normHeader[0] === "type" &&
-      normHeader[1] === "field" &&
-      normHeader[2] === "operator" &&
-      normHeader[3] === "value") ||
-    (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"));
+  // Helper: is this a criteria CSV?
+  function isCriteriaHeader(header: string[]): boolean {
+    const norm = header.map(h => String(h).trim().toLowerCase());
+    return (
+      norm.length >= 4 &&
+      norm[0] === "type" &&
+      norm[1] === "field" &&
+      norm[2] === "operator" &&
+      norm[3] === "value"
+    );
+  }
 
-  if (isSegmentation && Array.isArray(_segmentationRows)) {
-    const criteriaRows = (_segmentationRows as any[][]).map(row => {
-      const obj: any = {};
-      _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
-      obj.FIELD5 = obj.brand || obj.FIELD5 || "Bowlero";
-      if (!obj.field && obj.id) obj.field = obj.id;
-      if (!obj.operator) obj.operator = "equals";
-      if (!obj.value && obj.id) obj.value = obj.id;
-      return obj;
-    });
-
-    let brand = criteriaRows[0]?.FIELD5 || "Bowlero";
-    let field = criteriaRows[0]?.field || "";
+  // --- CRITERIA CSV ---
+  if (isCriteriaHeader(_header) && Array.isArray(_segmentationRows)) {
+    // Get brand and field from the first row
+    const firstRow = _segmentationRows[0] as any[];
+    let brand = "";
+    let field = "";
+    for (let i = 0; i < _header.length; i++) {
+      const header = (_header[i] + "").trim().toLowerCase();
+      if (header === "field5" || header === "brand") brand = firstRow[i];
+      if (header === "field") field = firstRow[i];
+    }
+    brand = brand || "Bowlero";
     let foundType = "";
     for (const t of Object.keys(fieldMappings[brand] || {})) {
       if (fieldMappings[brand][t].center.toString() === field.toString()) {
@@ -622,10 +624,30 @@ function updateOutput() {
     const type = foundType || "Retail";
     const mapping = fieldMappings[brand]?.[type];
     if (!mapping) {
-      output.textContent = "// Could not determine pref/unsub mapping for this CSV";
+      output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
       return;
     }
 
+    // Compose all center criteria, FORCING FIELD5 as brand string always
+    const centerCriteria = (_segmentationRows as any[][]).map(row => {
+      const obj: any = {};
+      _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
+      return {
+        type: "criteria",
+        field: obj.field !== undefined ? (typeof obj.field === "string" ? obj.field : obj.field.toString()) : "",
+        operator: obj.operator,
+        value: obj.value !== undefined ? (typeof obj.value === "string" ? obj.value : obj.value.toString()) : "",
+        FIELD5: brand.toString()
+      };
+    });
+
+    // Always wrap center criteria in a single OR block
+    const centerOrBlock = {
+      type: "or",
+      children: centerCriteria
+    };
+
+    // Pref/unsub criteria
     const prefCriteria = {
       type: "criteria",
       field: mapping.pref.toString(),
@@ -638,17 +660,8 @@ function updateOutput() {
       operator: "empty",
       value: ""
     };
-    const centerOrBlock = {
-      type: "or",
-      children: criteriaRows.map(obj => ({
-        type: "criteria",
-        field: obj.field?.toString() || "",
-        operator: obj.operator || "equals",
-        value: obj.value?.toString() || "",
-        FIELD5: obj.FIELD5
-      }))
-    };
 
+    // ALWAYS produce this structure, even if empty/partial
     const wrapped = {
       type: "and",
       children: [
@@ -661,6 +674,71 @@ function updateOutput() {
     return;
   }
 
+  // --- SEGMENTATION CSV ---
+  // Check for id, brand, type columns
+  const normHeader = _header.map(h => String(h).trim().toLowerCase());
+  const isSegmentation = normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type");
+  if (isSegmentation && Array.isArray(_segmentationRows)) {
+    // Group by brand/type
+    const rows = (_segmentationRows as any[][]).map(row => {
+      const obj: any = {};
+      _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
+      return obj;
+    });
+    // group by brand/type
+    const grouped: Record<string, any[]> = {};
+    for (const row of rows) {
+      const brand = row.brand || "Bowlero";
+      const type = row.type || "Retail";
+      const key = `${brand}|||${type}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(row);
+    }
+    // Output only the first group as a single JSON object (matches your example)
+    const firstKey = Object.keys(grouped)[0];
+    if (firstKey) {
+      const [brand, type] = firstKey.split("|||");
+      const mapping = fieldMappings[brand]?.[type];
+      if (!mapping) {
+        output.textContent = `// No mapping for brand "${brand}" and type "${type}"`;
+        return;
+      }
+      const centerOrBlock = {
+        type: "or",
+        children: grouped[firstKey].map(row => ({
+          type: "criteria",
+          field: mapping.center.toString(),
+          operator: "equals",
+          value: row.id?.toString(),
+          FIELD5: brand
+        }))
+      };
+      const prefCriteria = {
+        type: "criteria",
+        field: mapping.pref.toString(),
+        operator: "equals",
+        value: "True"
+      };
+      const unsubCriteria = {
+        type: "criteria",
+        field: mapping.unsub.toString(),
+        operator: "empty",
+        value: ""
+      };
+      const wrapped = {
+        type: "and",
+        children: [
+          prefCriteria,
+          unsubCriteria,
+          centerOrBlock
+        ]
+      };
+      output.textContent = JSON.stringify(wrapped, null, 2);
+      return;
+    }
+  }
+
+  // Fallback: treat as simple array of objects
   if (_header && Array.isArray(_segmentationRows)) {
     const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
     output.textContent = JSON.stringify(simpleJson, null, 2);
@@ -669,7 +747,6 @@ function updateOutput() {
 
   output.textContent = "// No valid data";
 }
-
 validateJsonButton?.addEventListener('click', () => {
   if (!jsonInput || !jsonValidationResult) return;
   const raw = jsonInput.value.trim();
