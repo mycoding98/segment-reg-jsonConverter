@@ -482,7 +482,7 @@ fileInput?.addEventListener('change', async (event: Event) => {
         _segmentationRows = arrayToSegmentationRows(header, expandedRows, "", true);
       } else {
         _header = header;
-        _segmentationRows = arrayToSegmentationRows(header, data.slice(1), fileType, false);
+        _segmentationRows = data.slice(1);
       }
       _fileType = fileType;
       _isXlsxOptIn = isXlsxOptIn;
@@ -574,7 +574,7 @@ processRawDataButton?.addEventListener('click', () => {
     _isXlsxOptIn = true;
   } else {
     _header = header;
-    _segmentationRows = arrayToSegmentationRows(header, data.slice(1), "", false);
+    _segmentationRows = data.slice(1);
     _isXlsxOptIn = false;
   }
   updateOutput();
