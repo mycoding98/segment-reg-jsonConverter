@@ -262,41 +262,37 @@ function buildJsonStructure(
   fieldMapping: { pref: number; center: number; unsub: number },
   segmentName: string
 ): object {
-  const orCriteria = rows.map(row => ({
+  const prefCriteria = {
     type: "criteria",
-    field: fieldMapping.center.toString(),
+    field: fieldMapping.pref.toString(),
     operator: "equals",
-    value: row.id?.toString(),
-    FIELD5: row.brand,
-  }));
-
+    value: "True"
+  };
+  const unsubCriteria = {
+    type: "criteria",
+    field: fieldMapping.unsub.toString(),
+    operator: "empty",
+    value: ""
+  };
   const centerOrBlock = {
     type: "or",
-    children: orCriteria
+    children: rows.map(row => ({
+      type: "criteria",
+      field: fieldMapping.center.toString(),
+      operator: "equals",
+      value: row.id?.toString(),
+      FIELD5: row.brand
+    }))
   };
 
-  const result = {
-    name: segmentName,
-    contactCriteria: {
-      type: "and",
-      children: [
-        {
-          type: "criteria",
-          field: fieldMapping.pref.toString(),
-          operator: "equals",
-          value: "True",
-        },
-        {
-          type: "criteria",
-          field: fieldMapping.unsub.toString(),
-          operator: "empty",
-          value: "",
-        },
-        centerOrBlock
-      ]
-    }
+  return {
+    type: "and",
+    children: [
+      prefCriteria,
+      unsubCriteria,
+      centerOrBlock
+    ]
   };
-  return result;
 }
 
 function splitOptins(rows: SegmentationRow[]): SegmentationRow[][] {
