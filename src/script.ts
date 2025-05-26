@@ -41,7 +41,6 @@ let _header: string[] = [];
 let _segmentationRows: SegmentationRow[] | any[][] = [];
 let _fileType: string = "";
 let _isXlsxOptIn: boolean = false;
-let _isCriteriaCsv: boolean = false;
 let _isRegularCsv: boolean = false;
 let _lastUploadedFileName: string | undefined = undefined;
 
@@ -73,17 +72,6 @@ function readFileAsync(file: File): Promise<ArrayBuffer> {
   });
 }
 
-function isCriteriaHeader(header: string[]): boolean {
-  const norm = header.map(h => String(h).trim().toLowerCase());
-  return (
-    norm.length >= 4 &&
-    norm[0] === "type" &&
-    norm[1] === "field" &&
-    norm[2] === "operator" &&
-    norm[3] === "value"
-  );
-}
-
 function isXlsxOptInHeader(header: string[]): boolean {
   const normHeader = header.map(h => String(h).trim().toLowerCase());
   const hasOptinId = normHeader.some(cell =>
@@ -99,12 +87,18 @@ function isXlsxOptInHeader(header: string[]): boolean {
 }
 
 function isRegularCsv(header: string[], data: any[][]): boolean {
-  const criteria = isCriteriaHeader(header);
-  const xlsxOptIn = isXlsxOptInHeader(header);
-  const segmentationColumns = ["id", "brand", "type"];
   const normHeader = header.map(h => String(h).trim().toLowerCase());
+  const segmentationColumns = ["id", "brand", "type"];
   const hasSegCols = segmentationColumns.every(h => normHeader.includes(h));
-  return !(criteria || xlsxOptIn || hasSegCols);
+  const isCriteria = (
+    normHeader.length >= 4 &&
+    normHeader[0] === "type" &&
+    normHeader[1] === "field" &&
+    normHeader[2] === "operator" &&
+    normHeader[3] === "value"
+  );
+  const xlsxOptIn = isXlsxOptInHeader(header);
+  return !(isCriteria || xlsxOptIn || hasSegCols);
 }
 
 function arrayToSimpleJson(header: string[], data: any[][]): object[] {
@@ -338,7 +332,6 @@ function clearCsvState() {
   _segmentationRows = [];
   _fileType = "";
   _isRegularCsv = false;
-  _isCriteriaCsv = false;
   _isXlsxOptIn = false;
   _lastUploadedFileName = undefined;
   if (output) output.textContent = "";
@@ -438,27 +431,34 @@ fileInput?.addEventListener('change', async (event: Event) => {
       if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
         header = header.map((_, idx) => `field${idx + 1}`);
       }
+      // Regular CSV
       if (isRegularCsv(header, data.slice(1))) {
         _header = header;
         _segmentationRows = data.slice(1);
         _isRegularCsv = true;
-        _isCriteriaCsv = false;
         _isXlsxOptIn = false;
         updateOutput();
         return;
       } else {
         _isRegularCsv = false;
       }
-      if (isCriteriaHeader(header)) {
+      // Segmentation/criteria CSV (criteria or id/brand/type)
+      const normHeader = header.map(h => h.trim().toLowerCase());
+      if (
+        (normHeader.length >= 4 &&
+          normHeader[0] === "type" &&
+          normHeader[1] === "field" &&
+          normHeader[2] === "operator" &&
+          normHeader[3] === "value") ||
+        (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"))
+      ) {
         _header = header;
         _segmentationRows = data.slice(1);
-        _isCriteriaCsv = true;
         _isXlsxOptIn = false;
         updateOutput();
         return;
-      } else {
-        _isCriteriaCsv = false;
       }
+      // 2-col opt-in
       if (isXlsxOptIn) {
         const normHeaders = header.map(h => (h ?? "").trim().toLowerCase());
         const valueCol = normHeaders.findIndex(h =>
@@ -489,7 +489,8 @@ fileInput?.addEventListener('change', async (event: Event) => {
       updateOutput();
     }
   } catch (error) {
-    output.textContent = `Error processing file: ${(error as Error).message}`; }
+    output.textContent = `Error processing file: ${(error as Error).message}`;
+  }
 });
 
 function parseRawCsvToArray(raw: string): any[][] {
@@ -532,23 +533,29 @@ processRawDataButton?.addEventListener('click', () => {
     _header = header;
     _segmentationRows = data.slice(1);
     _isRegularCsv = true;
-    _isCriteriaCsv = false;
     _isXlsxOptIn = false;
     updateOutput();
     return;
   } else {
     _isRegularCsv = false;
   }
-  if (isCriteriaHeader(header)) {
+  // Segmentation/criteria CSV (criteria or id/brand/type)
+  const normHeader = header.map(h => h.trim().toLowerCase());
+  if (
+    (normHeader.length >= 4 &&
+      normHeader[0] === "type" &&
+      normHeader[1] === "field" &&
+      normHeader[2] === "operator" &&
+      normHeader[3] === "value") ||
+    (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"))
+  ) {
     _header = header;
     _segmentationRows = data.slice(1);
-    _isCriteriaCsv = true;
     _isXlsxOptIn = false;
     updateOutput();
     return;
-  } else {
-    _isCriteriaCsv = false;
   }
+  // 2-col opt-in
   const isTwoColOptIn = isXlsxOptInHeader(header);
   if (isTwoColOptIn) {
     const normHeaders = header.map(h => (h ?? "").trim().toLowerCase());
@@ -583,7 +590,6 @@ processRawDataButton?.addEventListener('click', () => {
 function updateOutput() {
   if (!output || !_segmentationRows.length) return;
 
-  // Normalize header for segmentation detection
   const normHeader = _header.map(h => String(h).trim().toLowerCase());
   const isSegmentation =
     (normHeader.length >= 4 &&
@@ -594,22 +600,18 @@ function updateOutput() {
     (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"));
 
   if (isSegmentation && Array.isArray(_segmentationRows)) {
-    // Build criteriaRows with FIELD5 always present
     const criteriaRows = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
       obj.FIELD5 = obj.brand || obj.FIELD5 || "Bowlero";
-      // Fallbacks for id/field
       if (!obj.field && obj.id) obj.field = obj.id;
       if (!obj.operator) obj.operator = "equals";
       if (!obj.value && obj.id) obj.value = obj.id;
       return obj;
     });
 
-    // Use FIELD5 from first row or fallback
     let brand = criteriaRows[0]?.FIELD5 || "Bowlero";
     let field = criteriaRows[0]?.field || "";
-    // Guess type from field mapping (reverse lookup)
     let foundType = "";
     for (const t of Object.keys(fieldMappings[brand] || {})) {
       if (fieldMappings[brand][t].center.toString() === field.toString()) {
@@ -624,7 +626,6 @@ function updateOutput() {
       return;
     }
 
-    // Build the always-wrapped structure
     const prefCriteria = {
       type: "criteria",
       field: mapping.pref.toString(),
@@ -660,7 +661,6 @@ function updateOutput() {
     return;
   }
 
-  // Otherwise, treat as a regular CSV: output as array of objects
   if (_header && Array.isArray(_segmentationRows)) {
     const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
     output.textContent = JSON.stringify(simpleJson, null, 2);
@@ -692,13 +692,11 @@ document.addEventListener('DOMContentLoaded', () => {
   ['all', 'retail', 'ge', 'league'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', updateOutput);
   });
-
 });
 
 document.getElementById('copyButton')?.addEventListener('click', () => {
   if (output) {
     navigator.clipboard.writeText(output.textContent || '');
- 
   }
 });
 document.getElementById('downloadButton')?.addEventListener('click', () => {
@@ -712,6 +710,5 @@ document.getElementById('downloadButton')?.addEventListener('click', () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  
   }
 });
