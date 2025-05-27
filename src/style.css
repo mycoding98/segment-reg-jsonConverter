@@ -6,53 +6,112 @@ body {
   min-height: 100vh;
 }
 
-.section:first-of-type {
-  padding: 24px 40px 20px 40px;
-  max-width: 480px;
-}
-
-.section {
-  margin: 32px auto 0 auto;
-  max-width: 720px;
-  background: #fff;
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(60,72,88,0.13), 0 1.5px 4px rgba(60,72,88,0.06);
-  padding: 48px 40px 36px 40px;
+/* Hero header perfectly centered above main content */
+.hero-header {
+  min-height: 180px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  border: 1px solid #e5eaf1;
-}
-
-/* 
-.section-row {
-  /* display: flex;
-  gap: 32px;
+  align-items: center;
   justify-content: center;
-  margin-bottom: 40px; 
-}*/
-
-.section-row .section {
-  flex: 1 1 0;
-  min-width: 0;
+  text-align: center;
+  width: 100%;
+  margin: 0 auto 12px auto;
 }
 
-.json-section {
+.hero-header h1,
+.hero-header p {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+
+/* 2x2 grid for main content */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 40px;
+  max-width: 1200px;
+  margin: 32px auto 0 auto;
+  width: 100%;
+}
+.upload-section {
+  grid-column: 1;
+  grid-row: 1;
+}
+.paste-section {
+  grid-column: 2;
+  grid-row: 1;
+}
+.output-section {
+  grid-column: 1;
+  grid-row: 2;
+}
+.validator-section {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/* Panel base styles */
+.section, .upload-section, .paste-section,
+.output-section, .validator-section, .json-section {
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 4px 16px rgba(60,72,88,0.10), 0 1.5px 4px rgba(60,72,88,0.04);
   border: 1px solid #e5eaf1;
   padding: 28px 24px 20px 24px;
- margin: 48px auto 48px auto;
-  max-width: 640px;
+  margin-bottom: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.json-section button {
-  align-self: center;
-  margin-top: 12px;
+.section {
+  margin: 0;
+  max-width: none;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(60,72,88,0.10), 0 1.5px 4px rgba(60,72,88,0.04);
+  padding: 28px 24px 20px 24px;
+}
+.json-section {
+  margin: 0;
+  max-width: none;
+}
+
+/* Responsive - stack in a single column on mobile */
+@media (max-width: 900px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+    gap: 24px;
+    max-width: 98vw;
+  }
+  .upload-section, .output-section,
+  .paste-section, .validator-section {
+    grid-column: 1;
+  }
+  .upload-section { grid-row: 1; }
+  .paste-section { grid-row: 2; }
+  .output-section { grid-row: 3; }
+  .validator-section { grid-row: 4; }
+}
+
+/* Fine-tune padding for mobile */
+@media (max-width: 800px) {
+  .section,
+  .json-section {
+    padding: 18px 4vw 16px 4vw;
+  }
+  textarea, .jsonInput {
+    font-size: 1rem;
+  }
+  #output {
+    font-size: 0.97rem;
+    padding: 12px;
+  }
 }
 
 h1, h2, h3 {
@@ -60,30 +119,24 @@ h1, h2, h3 {
   letter-spacing: -0.5px;
   color: #1e293b;
   margin-bottom: 12px;
+ }
+
+h2 {
+  font-size: 1.5rem;           
+  width: 100%;                
+  text-align: left;           
+  margin-bottom: 12px;
+  font-weight: 700;          
+  letter-spacing: -0.5px;
+  color: #1e293b;
+  line-height: 1.2;
+  box-sizing: border-box;
 }
 
-textarea {
+
+/* Textarea Styles */
+textarea, .jsonInput {
   width: 95%;
-  min-height: 120px;
-  border-radius: 12px;
-  border: 1.5px solid #e2e8f0;
-  padding: 16px;
-  font-size: 1.09rem;
-  background: #f8fafc;
-  transition: border 0.2s, box-shadow 0.2s, background 0.2s;
-  resize: vertical;
-  box-shadow: 0 2px 8px rgba(60,72,88,0.04);
-  margin-bottom: 8px;
-}
-textarea:focus {
-  border: 1.5px solid #2563eb;
-  outline: none;
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(37,99,235,0.10);
-}
-
-.jsonInput {
-  width: 90%;
   min-height: 120px;
   border-radius: 12px;
   border: 1.5px solid #e2e8f0;
@@ -96,25 +149,27 @@ textarea:focus {
   margin-bottom: 8px;
   color: #23272f;
 }
-
-
-.jsonInput:focus {
+textarea:focus, .jsonInput:focus {
   border: 1.5px solid #2563eb;
   outline: none;
   background: #fff;
   box-shadow: 0 4px 16px rgba(37,99,235,0.10);
 }
+
+/* Output and validation results */
 #jsonValidationResult {
   max-width: 100%;
   box-sizing: border-box;
   word-break: break-word;
   white-space: pre-wrap;
   overflow-x: auto;
+  overflow-y: scroll;
   padding: 10px 14px;
   border-radius: 8px;
   background: #fff8f0;
   color: #b91c1c;
   margin-bottom: 8px;
+  max-height: 400px;
 }
 #output {
   background: #f6f8fa;
@@ -132,6 +187,25 @@ textarea:focus {
   max-height: 400px;
 }
 
+/* File input styling for better size and aesthetics */
+#fileInput {
+  font-size: 1.09rem;
+  padding: 14px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  color: #23272f;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(60,72,88,0.04);
+  margin-bottom: 10px;
+}
+#fileInput:hover, #fileInput:focus {
+  border: 1.5px solid #2563eb;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(37,99,235,0.10);
+}
+
+/* Buttons */
 button {
   background: linear-gradient(90deg, #2563eb 60%, #1e40af 100%);
   color: #fff;
@@ -153,25 +227,23 @@ button:hover, button:focus {
   transform: translateY(-2px) scale(1.04);
 }
 
+/* Miscellaneous elements */
 #actionButtons {
   display: flex;
   gap: 18px;
   margin-bottom: 22px;
 }
-
 .checkbox-group {
   margin-bottom: 16px;
   display: flex;
   gap: 24px;
   align-items: center;
 }
-
 label {
   font-size: 1.01rem;
   color: #374151;
   cursor: pointer;
 }
-
 input[type="checkbox"] {
   accent-color: #2563eb;
   width: 20px;
@@ -182,6 +254,7 @@ input[type="checkbox"] {
   transition: border 0.2s;
 }
 
+/* Scrollbar styles */
 ::-webkit-scrollbar {
   width: 10px;
   background: #f3f6fa;
@@ -190,25 +263,4 @@ input[type="checkbox"] {
 ::-webkit-scrollbar-thumb {
   background: #e2e8f0;
   border-radius: 8px;
-}
-
-@media (max-width: 800px) {
-  .section {
-    padding: 18px 4vw 16px 4vw;
-    max-width: 99vw;
-  }
-  textarea, .jsonInput {
-    font-size: 1rem;
-  }
-  #output {
-    font-size: 0.97rem;
-    padding: 12px;
-  }
-}
-
-@media (max-width: 900px) {
-  .section-row {
-    flex-direction: column;
-    gap: 24px;
-  }
 }
