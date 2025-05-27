@@ -1,5 +1,10 @@
+// AMERconvert Main Script
+// Handles CSV/XLSX parsing, segmentation, and JSON output for Bowlero/AMF/Lucky Strike brands
+// Robust CSV parsing: quoted fields, arrays, headerless, nested, vertical/horizontal, criteria, segmentation, etc.
+
 declare var XLSX: any;
 
+// Types
 interface Criteria {
   type: "criteria" | "and" | "or";
   field?: string;
@@ -13,6 +18,8 @@ interface SegmentationRow {
   brand: string;
   type: string;
 }
+
+// Brand/type lists and field mappings
 const BRAND_LIST = ["Bowlero", "AMF", "Lucky Strike"];
 const TYPE_LIST = ["Retail", "League", "Group Event", "GE"];
 
@@ -37,6 +44,7 @@ const fieldMappings: Record<string, Record<string, { pref: number; center: numbe
   },
 };
 
+// State variables
 let _header: string[] = [];
 let _segmentationRows: SegmentationRow[] | any[][] = [];
 let _fileType: string = "";
@@ -44,6 +52,7 @@ let _isXlsxOptIn: boolean = false;
 let _isRegularCsv: boolean = false;
 let _lastUploadedFileName: string | undefined = undefined;
 
+// DOM references
 const fileInput = document.getElementById('fileInput') as HTMLInputElement | null;
 const output = document.getElementById('output') as HTMLPreElement | null;
 const rawDataInput = document.getElementById('rawDataInput') as HTMLTextAreaElement | null;
@@ -52,17 +61,24 @@ const jsonInput = document.getElementById('jsonInput') as HTMLTextAreaElement | 
 const validateJsonButton = document.getElementById('validateJsonButton') as HTMLButtonElement | null;
 const jsonValidationResult = document.getElementById('jsonValidationResult') as HTMLPreElement | null;
 
+// Transpose a 2D array
+function transpose(matrix: any[][]): any[][] {
+  if (!matrix.length) return [];
+  return matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+}
+
+// Normalize brand and type values
 function normalizeBrand(brand: string): string {
   const match = BRAND_LIST.find(b => b.toLowerCase() === (brand + '').toLowerCase());
   return match || brand;
 }
-
 function normalizeType(type: string): string {
   if (type.toLowerCase() === "ge") return "Group Event";
   const found = TYPE_LIST.find(t => t.toLowerCase() === type.toLowerCase());
   return found || type;
 }
 
+// Read file as ArrayBuffer
 function readFileAsync(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -72,22 +88,27 @@ function readFileAsync(file: File): Promise<ArrayBuffer> {
   });
 }
 
-function isXlsxOptInHeader(header: string[]): boolean {
-  const normHeader = header.map(h => String(h).trim().toLowerCase());
+// Check if header matches opt-in XLSX format
+function isXlsxOptInHeader(header: any[]): boolean {
+  const normHeader = header.map(h => (h == null ? "" : String(h)).trim().toLowerCase());
   const hasOptinId = normHeader.some(cell =>
-    cell.includes('#') ||
-    cell.includes('id') ||
-    cell.includes('number') ||
-    cell.includes('optin')
+    String(cell).includes('#') ||
+    String(cell).includes('id') ||
+    String(cell).includes('number') ||
+    String(cell).includes('optin')
   );
   const hasBrandOrCenter = normHeader.some(cell =>
-    cell.includes('brand') || cell.includes('center')
+    String(cell).includes('brand') || String(cell).includes('center')
   );
   return hasOptinId && hasBrandOrCenter;
 }
 
-function isRegularCsv(header: string[], data: any[][]): boolean {
-  const normHeader = header.map(h => String(h).trim().toLowerCase());
+// Check if CSV is regular CSV, header is a flat array of strings
+function isRegularCsv(header: any[], data: any[][]): boolean {
+  if (!Array.isArray(header) || header.some(h => Array.isArray(h) || typeof h === "object")) {
+    return false;
+  }
+  const normHeader = header.map(h => (h == null ? "" : String(h)).trim().toLowerCase());
   const segmentationColumns = ["id", "brand", "type"];
   const hasSegCols = segmentationColumns.every(h => normHeader.includes(h));
   const isCriteria = (
@@ -97,10 +118,10 @@ function isRegularCsv(header: string[], data: any[][]): boolean {
     normHeader[2] === "operator" &&
     normHeader[3] === "value"
   );
-  const xlsxOptIn = isXlsxOptInHeader(header);
-  return !(isCriteria || xlsxOptIn || hasSegCols);
+  return !(isCriteria || hasSegCols);
 }
 
+// Convert array data to simple JSON objects
 function arrayToSimpleJson(header: string[], data: any[][]): object[] {
   return data.map(row => {
     const obj: any = {};
@@ -109,6 +130,7 @@ function arrayToSimpleJson(header: string[], data: any[][]): object[] {
   });
 }
 
+// Guess brand/type from file name
 function guessBrandTypeFromFileName(fileName: string): { brand: string, type: string } {
   const lower = fileName.toLowerCase();
   let brand = BRAND_LIST.find(b => lower.includes(b.toLowerCase())) || "Bowlero";
@@ -119,6 +141,7 @@ function guessBrandTypeFromFileName(fileName: string): { brand: string, type: st
   return { brand, type };
 }
 
+// Parse all sheets in an XLSX file
 async function parseXlsxAllSheets(file: File): Promise<Record<string, any[][]>> {
   const arrayBuffer = await readFileAsync(file);
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -130,6 +153,7 @@ async function parseXlsxAllSheets(file: File): Promise<Record<string, any[][]>> 
   return result;
 }
 
+// Parse a file (CSV or XLSX) and return data and metadata
 async function parseFile(file: File): Promise<{data: any[][], fileType: string, isXlsxOptIn: boolean, fileName: string, workbook?: any}> {
   const fileName = file.name.toLowerCase();
   let data: any[][];
@@ -145,13 +169,15 @@ async function parseFile(file: File): Promise<{data: any[][], fileType: string, 
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
     data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  } else if (isXlsx) {
+  } 
+  else if (isXlsx) {
     const arrayBuffer = await readFileAsync(file);
     workbook = XLSX.read(arrayBuffer, { type: 'array' });
     const firstSheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[firstSheetName];
     data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  } else {
+  } 
+  else {
     throw new Error("Unsupported file format: " + fileName);
   }
 
@@ -166,9 +192,11 @@ async function parseFile(file: File): Promise<{data: any[][], fileType: string, 
     if (lower.includes(type.toLowerCase().replace(/\s+/g, ''))) fileType = type;
     else if (lower.includes(type.toLowerCase())) fileType = type;
   }
+  
   return { data, fileType, isXlsxOptIn, fileName, workbook };
 }
 
+// convert array data to SegmentationRow[]
 function arrayToSegmentationRows(
   header: string[],
   data: any[][],
@@ -241,6 +269,7 @@ function arrayToSegmentationRows(
   return rows;
 }
 
+// get checked types from UI
 function getCheckedTypes(): string[] {
   const all = document.getElementById('all') as HTMLInputElement | null;
   if (all?.checked) return ["All"];
@@ -251,6 +280,7 @@ function getCheckedTypes(): string[] {
   return types;
 }
 
+// build JSON structure for segmentation output
 function buildJsonStructure(
   rows: SegmentationRow[],
   fieldMapping: { pref: number; center: number; unsub: number },
@@ -279,26 +309,31 @@ function buildJsonStructure(
     }))
   };
 
+  // Wraps the criteria block with name and contactCriteria like Bruno
   return {
-    type: "and",
-    children: [
-      prefCriteria,
-      unsubCriteria,
-      centerOrBlock
-    ]
+    name: segmentName,
+    contactCriteria: {
+      type: "and",
+      children: [
+        prefCriteria,
+        unsubCriteria,
+        centerOrBlock
+      ]
+    }
   };
 }
 
+// split large opt-in lists for output
 function splitOptins(rows: SegmentationRow[]): SegmentationRow[][] {
   if (rows.length < 200) {
     return [rows];
   } else {
     const firstChunk = Math.ceil(rows.length / 2);
-    const split = [rows.slice(0, firstChunk), rows.slice(firstChunk)];
-    return split;
+    return [rows.slice(0, firstChunk), rows.slice(firstChunk)];
   }
 }
 
+// group and split segmentation rows by brand/type
 function groupAndSplitRows(rows: SegmentationRow[], splitForXlsxOptIn: boolean) {
   const grouped = new Map<string, { rows: SegmentationRow[], brand: string, type: string }[]>();
   for (const row of rows) {
@@ -327,6 +362,7 @@ function groupAndSplitRows(rows: SegmentationRow[], splitForXlsxOptIn: boolean) 
   return result;
 }
 
+// clear all CSV state and output
 function clearCsvState() {
   _header = [];
   _segmentationRows = [];
@@ -337,8 +373,11 @@ function clearCsvState() {
   if (output) output.textContent = "";
 }
 
+// File input handler
 fileInput?.addEventListener('change', async (event: Event) => {
-  clearCsvState();
+  if (!fileInput.value) {
+    clearCsvState();
+  }
   if (!output) return;
   const file = (event.target as HTMLInputElement)?.files?.[0];
   if (!file) {
@@ -351,6 +390,7 @@ fileInput?.addEventListener('change', async (event: Event) => {
     let checkedTypes = getCheckedTypes();
     if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
     if (isXlsx) {
+      // XLSX: Only process sheets with both ID and brand/center columns
       const sheetsData = await parseXlsxAllSheets(file);
       let segmentationOutputs: string[] = [];
       let foundSegmentation = false;
@@ -360,12 +400,31 @@ fileInput?.addEventListener('change', async (event: Event) => {
         if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
           header = header.map((_, idx) => `field${idx + 1}`);
         }
-        if (isRegularCsv(header, data.slice(1))) continue;
+        // Check for ID and brand/center columns
+        const normHeader = header.map(h => (h == null ? "" : String(h)).trim().toLowerCase());
+        const hasId = normHeader.some(cell =>
+          typeof cell === "string" && (
+            cell.includes('#') ||
+            cell.includes('id') ||
+            cell.includes('number') ||
+            cell.includes('optin')
+          )
+        );
+        const hasBrandOrCenter = normHeader.some(cell =>
+          typeof cell === "string" && (
+            cell.includes('brand') || cell.includes('center')
+          )
+        );
+        if (!(hasId && hasBrandOrCenter)) {
+          segmentationOutputs.push(`// Sheet "${sheetName}" skipped: missing ID or brand/center column`);
+          continue;
+        }
 
         let segmentationRows: SegmentationRow[];
         let isXlsxOptIn = isXlsxOptInHeader(header);
         let fileType = "";
         if (isXlsxOptIn) {
+          // Expand opt-in rows for each checked type
           const normHeaders = header.map(h => (h ?? "").trim().toLowerCase());
           const valueCol = normHeaders.findIndex(h =>
             h.includes('#') || h.includes('id') || h.includes('number') || h.includes('optin')
@@ -388,6 +447,37 @@ fileInput?.addEventListener('change', async (event: Event) => {
         } else {
           segmentationRows = arrayToSegmentationRows(header, data.slice(1), fileType, false);
         }
+        // --- Robust deduplication and normalization for XLSX segmentation output ---
+        function cleanStr(val: any) {
+          if (val == null) return "";
+          return String(val)
+            .replace(/[\u200B-\u200D\uFEFF\u00A0\u202F\u2060\u180E]/g, "") // remove invisible/non-breaking
+            .replace(/\s+/g, " ") // collapse whitespace
+            .trim()
+            .toLowerCase();
+        }
+        const seen = new Set<string>();
+        segmentationRows = segmentationRows.filter(row => {
+          const normId = cleanStr(row.id);
+          const normBrand = cleanStr(normalizeBrand(row.brand));
+          const normType = cleanStr(normalizeType(row.type));
+          if (!normId || !normBrand || !normType) {
+            console.error(`Deduplication skip: Missing field(s) - id: '${row.id}', brand: '${row.brand}', type: '${row.type}' (normalized: id='${normId}', brand='${normBrand}', type='${normType}')`);
+            return false;
+          }
+          const key = `${normId}|||${normBrand}|||${normType}`;
+          if (seen.has(key)) {
+            console.error(`Deduplication skip: Duplicate key '${key}' for row id: '${row.id}', brand: '${row.brand}', type: '${row.type}'`);
+            return false;
+          }
+          seen.add(key);
+          // Store canonical-cased brand for output (not lowercased)
+          row.id = normId;
+          row.brand = normalizeBrand(row.brand); // preserve canonical casing for output
+          row.type = normalizeType(row.type); // enforce normalized type for grouping/output
+          return true;
+        });
+        // --- End robust deduplication ---
         const grouped = groupAndSplitRows(segmentationRows, isXlsxOptIn);
         let outputStr = "";
         for (const [key, chunks] of grouped.entries()) {
@@ -395,71 +485,86 @@ fileInput?.addEventListener('change', async (event: Event) => {
             const { rows, brand, type } = chunks[i];
             const mapping = fieldMappings[brand]?.[normalizeType(type)];
             if (!mapping) {
-              outputStr += `// No mapping for brand "${brand}" and type "${type}"\n`;
+              outputStr += `// No mapping for brand "${brand}" and type "${type}"
+`;
               continue;
             }
+            // Fallback deduplication by id+brand+type within this chunk (with normalization)
+            const seenFinal = new Set<string>();
+            const dedupedChunk = rows.filter(row => {
+              const key = `${cleanStr(row.id)}|||${cleanStr(normalizeBrand(row.brand))}|||${cleanStr(normalizeType(row.type))}`;
+              if (seenFinal.has(key)) return false;
+              seenFinal.add(key);
+              return true;
+            });
             let name = `${brand} ${type}`;
             if (chunks.length > 1) name += ` ${i + 1}`;
-            const json = buildJsonStructure(rows, mapping, name);
-            outputStr += JSON.stringify(json, null, 2) + "\n\n";
+            const jsonStr = JSON.stringify(buildJsonStructure(dedupedChunk, mapping, name), null, 2);
+            outputStr += `\n\n-- STARTS ${name} --\n\n`;
+            outputStr += jsonStr + "\n\n";
+            outputStr += `-- ENDS ${name} --\n\n`;
           }
         }
         if (outputStr.trim()) {
           foundSegmentation = true;
-          segmentationOutputs.push(`// ${sheetName}\n${outputStr.trim()}\n`);
+          segmentationOutputs.push(`// ${sheetName}\n\n${outputStr.trim()}\n`);
         }
       }
       if (foundSegmentation) {
         output.textContent = segmentationOutputs.join('\n').trim();
         return;
       }
-      const firstSheetName = Object.keys(sheetsData)[0];
-      const data = sheetsData[firstSheetName];
-      let header = data[0] as string[];
-      if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
-        header = header.map((_, idx) => `field${idx + 1}`);
-      }
-      _header = header;
-      _segmentationRows = data.slice(1);
-      _isRegularCsv = true;
-      updateOutput();
+      output.textContent = segmentationOutputs.length
+        ? segmentationOutputs.join('\n').trim()
+        : "XLSX files are only supported for segmentation/criteria/opt-in formats with both ID and brand/center columns.";
       return;
     } else {
+      // CSV: parse and handle all types
       const { data, fileType, isXlsxOptIn, fileName } = await parseFile(file);
       _lastUploadedFileName = file.name;
       let header = data[0] as string[];
       if (header.every(cell => typeof cell !== "string" || !cell || !isNaN(Number(cell)))) {
         header = header.map((_, idx) => `field${idx + 1}`);
       }
-      // Regular CSV
-      if (isRegularCsv(header, data.slice(1))) {
+
+      // Segmentation detection logic
+      const normHeader = header.map(h => (h == null ? "" : String(h)).trim().toLowerCase());
+      const isCriteriaHeader = (
+        normHeader.length === 4 &&
+        normHeader[0] === "type" &&
+        normHeader[1] === "field" &&
+        normHeader[2] === "operator" &&
+        normHeader[3] === "value"
+      );
+      const isSegmentationHeader = (
+        normHeader.length === 3 &&
+        normHeader.includes("id") &&
+        normHeader.includes("brand") &&
+        normHeader.includes("type")
+      );
+      let isSegmentation = false;
+      if (isCriteriaHeader) {
+        isSegmentation = true;
+      } else if (isSegmentationHeader) {
+        const brandIdx = normHeader.indexOf("brand");
+        if (brandIdx !== -1) {
+          const brands = data.slice(1).map(row => (row[brandIdx] ?? "").toString().trim().toLowerCase());
+          if (brands.some(b => ["bowlero", "amf", "lucky strike", "luckystrike"].includes(b.replace(/\s+/g, "")))) {
+            isSegmentation = true;
+          }
+        }
+      }
+
+      if (isSegmentation) {
         _header = header;
         _segmentationRows = data.slice(1);
-        _isRegularCsv = true;
         _isXlsxOptIn = false;
         updateOutput();
         return;
-      } else {
-        _isRegularCsv = false;
       }
-      // Segmentation/criteria CSV (criteria or id/brand/type)
-      const normHeader = header.map(h => h.trim().toLowerCase());
-      if (
-        (normHeader.length >= 4 &&
-          normHeader[0] === "type" &&
-          normHeader[1] === "field" &&
-          normHeader[2] === "operator" &&
-          normHeader[3] === "value") ||
-        (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"))
-      ) {
-        _header = header;
-        _segmentationRows = data.slice(1);
-        _isXlsxOptIn = false;
-        updateOutput();
-        return;
-      }
-      // 2-col opt-in
+
       if (isXlsxOptIn) {
+        // Expand opt-in rows for each checked type
         const normHeaders = header.map(h => (h ?? "").trim().toLowerCase());
         const valueCol = normHeaders.findIndex(h =>
           h.includes('#') || h.includes('id') || h.includes('number') || h.includes('optin')
@@ -493,8 +598,38 @@ fileInput?.addEventListener('change', async (event: Event) => {
   }
 });
 
+// Robust CSV parser for pasted/textarea input
 function parseRawCsvToArray(raw: string): any[][] {
+  function parseCsvRow(row: string): string[] {
+    const result: string[] = [];
+    let curr = "";
+    let inQuotes = false;
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      if (char === '"') {
+        if (inQuotes && row[i + 1] === '"') {
+          curr += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(curr);
+        curr = "";
+      } else {
+        curr += char;
+      }
+    }
+    result.push(curr);
+    return result;
+  }
   const lines = raw.trim().split('\n');
+  // If any line is quoted, use robust parser
+  if (lines.some(line => line.includes('"'))) {
+    const parsed = lines.map(parseCsvRow);
+    return parsed;
+  }
+  // Otherwise, try delimiter detection
   const delimiters = [',', '\t', ';', '|'];
   let bestRows = lines.map(line => line.split(','));
   let maxCols = bestRows[0].length;
@@ -508,6 +643,15 @@ function parseRawCsvToArray(raw: string): any[][] {
   return bestRows;
 }
 
+// detect vertical header CSVs
+function isVerticalHeader(data: any[][]): boolean {
+  if (!data.length || !data[0].length) return false;
+  const firstCol = data.map(row => row[0]);
+  const stringCount = firstCol.filter(cell => typeof cell === "string" && isNaN(Number(cell)) && cell.trim() !== "").length;
+  return data.length > data[0].length && stringCount > data.length * 0.6;
+}
+
+// Handler for processing pasted/raw CSV data
 processRawDataButton?.addEventListener('click', () => {
   clearCsvState();
   if (!rawDataInput || !output) return;
@@ -529,34 +673,48 @@ processRawDataButton?.addEventListener('click', () => {
   let checkedTypes = getCheckedTypes();
   if (!checkedTypes.length || checkedTypes.includes("All")) checkedTypes = TYPE_LIST;
 
-  if (isRegularCsv(header, data.slice(1))) {
+  // Segmentation detection logic
+  const normHeader = header.map(h => (h == null ? "" : String(h)).trim().toLowerCase());
+  const isCriteriaHeader = (
+    normHeader.length === 4 &&
+    normHeader[0] === "type" &&
+    normHeader[1] === "field" &&
+    normHeader[2] === "operator" &&
+    normHeader[3] === "value"
+  );
+  const isSegmentationHeader = (
+    normHeader.length === 3 &&
+    normHeader.includes("id") &&
+    normHeader.includes("brand") &&
+    normHeader.includes("type")
+  );
+  let isSegmentation = false;
+  if (isCriteriaHeader) {
+    isSegmentation = true;
+  } else if (isSegmentationHeader) {
+    const brandIdx = normHeader.indexOf("brand");
+    if (brandIdx !== -1) {
+      const brands = data.slice(1).map(row => (row[brandIdx] ?? "").toString().trim().toLowerCase());
+      if (brands.some(b => ["bowlero", "amf", "lucky strike", "luckystrike"].includes(b.replace(/\s+/g, "")))) {
+        isSegmentation = true;
+      }
+    }
+  }
+
+  if (isSegmentation) {
     _header = header;
     _segmentationRows = data.slice(1);
-    _isRegularCsv = true;
     _isXlsxOptIn = false;
     updateOutput();
     return;
-  } else {
-    _isRegularCsv = false;
   }
-  // Segmentation/criteria CSV (criteria or id/brand/type)
-  const normHeader = header.map(h => h.trim().toLowerCase());
-  if (
-    (normHeader.length >= 4 &&
-      normHeader[0] === "type" &&
-      normHeader[1] === "field" &&
-      normHeader[2] === "operator" &&
-      normHeader[3] === "value") ||
-    (normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type"))
-  ) {
-    _header = header;
-    _segmentationRows = data.slice(1);
-    _isXlsxOptIn = false;
-    updateOutput();
-    return;
+
+  // Only check for opt-in if header is all strings and not auto-generated
+  const isHeaderLikelyOptIn = header.every(cell => typeof cell === "string" && cell.trim() !== "");
+  let isTwoColOptIn = false;
+  if (isHeaderLikelyOptIn && header.length === 2) {
+    isTwoColOptIn = isXlsxOptInHeader(header);
   }
-  // 2-col opt-in
-  const isTwoColOptIn = isXlsxOptInHeader(header);
   if (isTwoColOptIn) {
     const normHeaders = header.map(h => (h ?? "").trim().toLowerCase());
     const valueCol = normHeaders.findIndex(h =>
@@ -579,7 +737,7 @@ processRawDataButton?.addEventListener('click', () => {
     _header = header;
     _segmentationRows = arrayToSegmentationRows(header, expandedRows, "", true);
     _isXlsxOptIn = true;
-  } else {
+  }  else {
     _header = header;
     _segmentationRows = data.slice(1);
     _isXlsxOptIn = false;
@@ -587,10 +745,10 @@ processRawDataButton?.addEventListener('click', () => {
   updateOutput();
 });
 
+// Main output logic: handles all output types
 function updateOutput() {
   if (!output || !_segmentationRows.length) return;
 
-  // Helper: is this a criteria CSV?
   function isCriteriaHeader(header: string[]): boolean {
     const norm = header.map(h => String(h).trim().toLowerCase());
     return (
@@ -602,9 +760,8 @@ function updateOutput() {
     );
   }
 
-  // --- CRITERIA CSV ---
+  // Criteria CSV output
   if (isCriteriaHeader(_header) && Array.isArray(_segmentationRows)) {
-    // Get brand and field from the first row
     const firstRow = _segmentationRows[0] as any[];
     let brand = "";
     let field = "";
@@ -612,6 +769,18 @@ function updateOutput() {
       const header = (_header[i] + "").trim().toLowerCase();
       if (header === "field5" || header === "brand") brand = firstRow[i];
       if (header === "field") field = firstRow[i];
+    }
+    // Try to infer brand from field if not found in row
+    if (!brand && field) {
+      for (const b of Object.keys(fieldMappings)) {
+        for (const t of Object.keys(fieldMappings[b])) {
+          if (fieldMappings[b][t].center.toString() === field.toString()) {
+            brand = b;
+            break;
+          }
+        }
+        if (brand) break;
+      }
     }
     brand = brand || "Bowlero";
     let foundType = "";
@@ -627,8 +796,6 @@ function updateOutput() {
       output.textContent = "// Could not determine pref/unsub mapping for this criteria CSV";
       return;
     }
-
-    // Compose all center criteria, FORCING FIELD5 as brand string always
     const centerCriteria = (_segmentationRows as any[][]).map(row => {
       const obj: any = {};
       _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
@@ -640,14 +807,10 @@ function updateOutput() {
         FIELD5: brand.toString()
       };
     });
-
-    // Always wrap center criteria in a single OR block
     const centerOrBlock = {
       type: "or",
       children: centerCriteria
     };
-
-    // Pref/unsub criteria
     const prefCriteria = {
       type: "criteria",
       field: mapping.pref.toString(),
@@ -660,93 +823,239 @@ function updateOutput() {
       operator: "empty",
       value: ""
     };
-
-    // ALWAYS produce this structure, even if empty/partial
+    const segmentName = `${brand} ${type}`;
     const wrapped = {
-      type: "and",
-      children: [
-        prefCriteria,
-        unsubCriteria,
-        centerOrBlock
-      ]
-    };
-    output.textContent = JSON.stringify(wrapped, null, 2);
-    return;
-  }
-
-  // --- SEGMENTATION CSV ---
-  // Check for id, brand, type columns
-  const normHeader = _header.map(h => String(h).trim().toLowerCase());
-  const isSegmentation = normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type");
-  if (isSegmentation && Array.isArray(_segmentationRows)) {
-    // Group by brand/type
-    const rows = (_segmentationRows as any[][]).map(row => {
-      const obj: any = {};
-      _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
-      return obj;
-    });
-    // group by brand/type
-    const grouped: Record<string, any[]> = {};
-    for (const row of rows) {
-      const brand = row.brand || "Bowlero";
-      const type = row.type || "Retail";
-      const key = `${brand}|||${type}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(row);
-    }
-    // Output only the first group as a single JSON object (matches your example)
-    const firstKey = Object.keys(grouped)[0];
-    if (firstKey) {
-      const [brand, type] = firstKey.split("|||");
-      const mapping = fieldMappings[brand]?.[type];
-      if (!mapping) {
-        output.textContent = `// No mapping for brand "${brand}" and type "${type}"`;
-        return;
-      }
-      const centerOrBlock = {
-        type: "or",
-        children: grouped[firstKey].map(row => ({
-          type: "criteria",
-          field: mapping.center.toString(),
-          operator: "equals",
-          value: row.id?.toString(),
-          FIELD5: brand
-        }))
-      };
-      const prefCriteria = {
-        type: "criteria",
-        field: mapping.pref.toString(),
-        operator: "equals",
-        value: "True"
-      };
-      const unsubCriteria = {
-        type: "criteria",
-        field: mapping.unsub.toString(),
-        operator: "empty",
-        value: ""
-      };
-      const wrapped = {
+      name: segmentName,
+      contactCriteria: {
         type: "and",
         children: [
           prefCriteria,
           unsubCriteria,
           centerOrBlock
         ]
-      };
-      output.textContent = JSON.stringify(wrapped, null, 2);
+      }
+    };
+    output.textContent = JSON.stringify(wrapped, null, 2);
+    return;
+  }
+
+  // Segmentation CSV output
+  const normHeader = _header.map(h => String(h).trim().toLowerCase());
+  const isSegmentation = normHeader.includes("id") && normHeader.includes("brand") && normHeader.includes("type");
+  if (isSegmentation && Array.isArray(_segmentationRows)) {
+    let rows = (_segmentationRows as any[][]).map(row => {
+      const obj: any = {};
+      _header.forEach((h, i) => { if (h && row[i] !== undefined) obj[h] = row[i]; });
+      return obj;
+    });
+    // eliminate possible duped rows by id+brand+type (robust normalization)
+    function cleanStr(val: any) {
+      if (val == null) return "";
+      return String(val)
+        .replace(/[\u200B-\u200D\uFEFF\u00A0\u202F\u2060\u180E]/g, "") // remove invisible/non-breaking
+        .replace(/\s+/g, " ") // collapse whitespace
+        .trim()
+        .toLowerCase();
+    }
+    const seen = new Set<string>();
+    rows = rows.filter(row => {
+      const normId = cleanStr(row.id);
+      const normBrand = cleanStr(normalizeBrand(row.brand));
+      const normType = cleanStr(normalizeType(row.type));
+      if (!normId || !normBrand || !normType) {
+        console.error(`Deduplication skip: Missing field(s) - id: '${row.id}', brand: '${row.brand}', type: '${row.type}' (normalized: id='${normId}', brand='${normBrand}', type='${normType}')`);
+        return false;
+      }
+      const key = `${normId}|||${normBrand}|||${normType}`;
+      if (seen.has(key)) {
+        console.error(`Deduplication skip: Duplicate key '${key}' for row id: '${row.id}', brand: '${row.brand}', type: '${row.type}'`);
+        return false;
+      }
+      seen.add(key);
+      //normalize values for grouping/output
+      row.id = normId;
+      row.brand = normBrand;
+      row.type = normalizeType(row.type); // enforce normalized type for grouping/output
+      return true;
+    });
+    // group by brand/type
+    const grouped: Record<string, any[]> = {};
+    for (const row of rows) {
+      const brand = row.brand;
+      const type = row.type; // already normalized
+      const key = `${brand}|||${type}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(row);
+    }
+    // split and output each group as separate JSON if >=200 rows
+    let outputStr = "";
+    let foundAny = false;
+    for (const key of Object.keys(grouped)) {
+      const [brand, type] = key.split("|||");
+      const mapping = fieldMappings[brand]?.[type];
+      if (!mapping) {
+        outputStr += `// No mapping for brand "${brand}" and type "${type}"
+`;
+        continue;
+      }
+      const groupRows = grouped[key];
+      // split into chunks of <200
+      const chunkSize = 200;
+      for (let i = 0; i < groupRows.length; i += chunkSize) {
+        const chunk = groupRows.slice(i, i + chunkSize);
+        // Fallback deduplication by id+brand+type within this chunk (with normalization)
+        const seenFinal = new Set<string>();
+        const dedupedChunk = chunk.filter(row => {
+          const key = `${cleanStr(row.id)}|||${cleanStr(normalizeBrand(row.brand))}|||${cleanStr(normalizeType(row.type))}`;
+          if (seenFinal.has(key)) return false;
+          seenFinal.add(key);
+          return true;
+        });
+        let name = `${brand} ${type}`;
+        if (groupRows.length > chunkSize) name += ` ${Math.floor(i / chunkSize) + 1}`;
+        const centerOrBlock = {
+          type: "or",
+          children: dedupedChunk.map(row => ({
+            type: "criteria",
+            field: mapping.center.toString(),
+            operator: "equals",
+            value: row.id?.toString(),
+            FIELD5: brand
+          }))
+        };
+        const prefCriteria = {
+          type: "criteria",
+          field: mapping.pref.toString(),
+          operator: "equals",
+          value: "True"
+        };
+        const unsubCriteria = {
+          type: "criteria",
+          field: mapping.unsub.toString(),
+          operator: "empty",
+          value: ""
+        };
+        const wrapped = {
+          name,
+          contactCriteria: {
+            type: "and",
+            children: [
+              prefCriteria,
+              unsubCriteria,
+              centerOrBlock
+            ]
+          }
+        };
+        outputStr += JSON.stringify(wrapped, null, 2) + "\n\n";
+        foundAny = true;
+      }
+    }
+    if (foundAny) {
+      output.textContent = outputStr.trim();
       return;
     }
   }
 
-  // Fallback: treat as simple array of objects
+  // Vertical CSV detection (headers in first column)
   if (_header && Array.isArray(_segmentationRows)) {
-    const simpleJson = arrayToSimpleJson(_header, _segmentationRows as any[][]);
+    let header = _header;
+    let dataRows = _segmentationRows as any[][];
+    if (isVerticalHeader([header, ...dataRows])) {
+      const matrix = [header, ...dataRows];
+      const transposed = transpose(matrix);
+      header = transposed[0].map((cell: any) => String(cell).trim());
+      dataRows = transposed.slice(1);
+      const firstRow = transposed[0];
+      const isHeaderRow = firstRow.some(cell => typeof cell === "string" && isNaN(Number(cell)) && cell.trim() !== "");
+      let records: any[] = [];
+      if (isHeaderRow) {
+        const newHeader = firstRow;
+        for (let i = 1; i < transposed.length; i++) {
+          const row = transposed[i];
+          const obj: any = {};
+          newHeader.forEach((h, idx) => { obj[h] = row[idx]; });
+          records.push(obj);
+        }
+      } else {
+        const newHeader = firstRow.map((_, idx) => `field${idx + 1}`);
+        for (let i = 0; i < transposed.length; i++) {
+          const row = transposed[i];
+          const obj: any = {};
+          newHeader.forEach((h, idx) => { obj[h] = row[idx]; });
+          records.push(obj);
+        }
+      }
+      output.textContent = JSON.stringify(records, null, 2);
+      return;
+    }
+  }
+
+  // Regular CSV (robust parsing, arrays, nested, headerless, etc)
+  if (_isRegularCsv && _header && Array.isArray(_segmentationRows)) {
+    let header = _header;
+    let dataRows = _segmentationRows as any[][];
+    const isHeaderRow = header.some(cell => typeof cell === "string" && isNaN(Number(cell)) && cell.trim() !== "");
+    if (!isHeaderRow) {
+      header = header.map((_, idx) => `field${idx + 1}`);
+    }
+
+    // Set nested value by dotted path
+    function setNested(obj: any, path: string, value: any) {
+      const parts = path.split(".");
+      let curr = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!curr[parts[i]]) curr[parts[i]] = {};
+        curr = curr[parts[i]];
+      }
+      curr[parts[parts.length - 1]] = value;
+    }
+
+    const simpleJson = dataRows.map(row => {
+      const obj: any = {};
+      header.forEach((h, i) => {
+        let val = row[i];
+        if (val === undefined || val === "") val = null;
+        // Array support: split on ; if present and not quoted
+        if (typeof val === "string" && val.includes(";")) {
+          let v = val.trim();
+          if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
+          val = v.split(";").map(s => s.trim());
+        } else if (typeof val === "string" && val.startsWith('"') && val.endsWith('"')) {
+          val = val.slice(1, -1);
+        }
+        // Nested support: dotted headers
+        if (h.includes(".")) {
+          setNested(obj, h, val);
+        } else {
+          obj[h] = val;
+        }
+      });
+      return obj;
+    });
+
     output.textContent = JSON.stringify(simpleJson, null, 2);
     return;
   }
 
-  output.textContent = "// No valid data";
+  // Fallback treat as horizontal CSV
+  if (_header && Array.isArray(_segmentationRows)) {
+    let header = _header;
+    let dataRows = _segmentationRows as any[][];
+    const isHeaderRow = header.some(cell => typeof cell === "string" && isNaN(Number(cell)) && cell.trim() !== "");
+    if (!isHeaderRow) {
+      header = header.map((_, idx) => `field${idx + 1}`);
+    }
+    const simpleJson = dataRows.map(row => {
+      const obj: any = {};
+      header.forEach((h, i) => { obj[h] = row[i]; });
+      return obj;
+    });
+    output.textContent = JSON.stringify(simpleJson, null, 2);
+    return;
+  }
 }
+
+// JSON validation for manual input
 validateJsonButton?.addEventListener('click', () => {
   if (!jsonInput || !jsonValidationResult) return;
   const raw = jsonInput.value.trim();
@@ -765,16 +1074,16 @@ validateJsonButton?.addEventListener('click', () => {
   }
 });
 
+// UI event listeners for type checkboxes
 document.addEventListener('DOMContentLoaded', () => {
   ['all', 'retail', 'ge', 'league'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', updateOutput);
   });
 });
 
+// Copy and download buttons
 document.getElementById('copyButton')?.addEventListener('click', () => {
-  if (output) {
-    navigator.clipboard.writeText(output.textContent || '');
-  }
+  if (output) { navigator.clipboard.writeText(output.textContent || ''); }
 });
 document.getElementById('downloadButton')?.addEventListener('click', () => {
   if (output) {

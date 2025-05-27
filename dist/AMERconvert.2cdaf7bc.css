@@ -1,0 +1,212 @@
+body {
+  color: #23272f;
+  background: linear-gradient(120deg, #f5f7fa 0%, #e9eff5 100%);
+  min-height: 100vh;
+  margin: 0;
+  font-family: Inter, Segoe UI, Arial, sans-serif;
+}
+
+.section:first-of-type {
+  max-width: 480px;
+  padding: 24px 40px 20px;
+}
+
+.section {
+  background: #fff;
+  border: 1px solid #e5eaf1;
+  border-radius: 20px;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 720px;
+  margin: 32px auto 0;
+  padding: 48px 40px 36px;
+  display: flex;
+  box-shadow: 0 8px 32px #3c485821, 0 1.5px 4px #3c48580f;
+}
+
+.section-row .section {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.json-section {
+  background: #fff;
+  border: 1px solid #e5eaf1;
+  border-radius: 16px;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  margin: 48px auto;
+  padding: 28px 24px 20px;
+  display: flex;
+  box-shadow: 0 4px 16px #3c48581a, 0 1.5px 4px #3c48580a;
+}
+
+.json-section button {
+  align-self: center;
+  margin-top: 12px;
+}
+
+h1, h2, h3 {
+  letter-spacing: -.5px;
+  color: #1e293b;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+textarea {
+  resize: vertical;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  width: 95%;
+  min-height: 120px;
+  margin-bottom: 8px;
+  padding: 16px;
+  font-size: 1.09rem;
+  transition: border .2s, box-shadow .2s, background .2s;
+  box-shadow: 0 2px 8px #3c48580a;
+}
+
+textarea:focus {
+  background: #fff;
+  border: 1.5px solid #2563eb;
+  outline: none;
+  box-shadow: 0 4px 16px #2563eb1a;
+}
+
+.jsonInput {
+  resize: vertical;
+  color: #23272f;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  width: 90%;
+  min-height: 120px;
+  margin-bottom: 8px;
+  padding: 16px;
+  font-size: 1.09rem;
+  transition: border .2s, box-shadow .2s, background .2s;
+  box-shadow: 0 2px 8px #3c48580a;
+}
+
+.jsonInput:focus {
+  background: #fff;
+  border: 1.5px solid #2563eb;
+  outline: none;
+  box-shadow: 0 4px 16px #2563eb1a;
+}
+
+#jsonValidationResult {
+  box-sizing: border-box;
+  word-break: break-word;
+  white-space: pre-wrap;
+  color: #b91c1c;
+  background: #fff8f0;
+  border-radius: 8px;
+  max-width: 100%;
+  margin-bottom: 8px;
+  padding: 10px 14px;
+  overflow-x: auto;
+}
+
+#output {
+  white-space: pre-wrap;
+  color: #2d3748;
+  background: #f6f8fa;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  max-height: 400px;
+  margin-top: 12px;
+  padding: 26px;
+  font-family: Fira Mono, Consolas, monospace;
+  font-size: 1.04rem;
+  overflow: auto scroll;
+  box-shadow: 0 2px 12px #3c48580f;
+}
+
+button {
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: .02em;
+  background: linear-gradient(90deg, #2563eb 60%, #1e40af 100%);
+  border: none;
+  border-radius: 10px;
+  margin-bottom: 0;
+  margin-right: 0;
+  padding: 14px 32px;
+  font-size: 1.09rem;
+  font-weight: 600;
+  transition: background .18s, box-shadow .18s, transform .12s;
+  box-shadow: 0 2px 12px #2563eb1a;
+}
+
+button:hover, button:focus {
+  background: linear-gradient(90deg, #1e40af 60%, #2563eb 100%);
+  transform: translateY(-2px)scale(1.04);
+  box-shadow: 0 6px 24px #2563eb2e;
+}
+
+#actionButtons {
+  gap: 18px;
+  margin-bottom: 22px;
+  display: flex;
+}
+
+.checkbox-group {
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+  display: flex;
+}
+
+label {
+  color: #374151;
+  cursor: pointer;
+  font-size: 1.01rem;
+}
+
+input[type="checkbox"] {
+  accent-color: #2563eb;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  transition: border .2s;
+}
+
+::-webkit-scrollbar {
+  background: #f3f6fa;
+  border-radius: 8px;
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 8px;
+}
+
+@media (width <= 800px) {
+  .section {
+    max-width: 99vw;
+    padding: 18px 4vw 16px;
+  }
+
+  textarea, .jsonInput {
+    font-size: 1rem;
+  }
+
+  #output {
+    padding: 12px;
+    font-size: .97rem;
+  }
+}
+
+@media (width <= 900px) {
+  .section-row {
+    flex-direction: column;
+    gap: 24px;
+  }
+}
+/*# sourceMappingURL=AMERconvert.2cdaf7bc.css.map */
