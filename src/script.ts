@@ -1,10 +1,10 @@
 // AMERconvert Main Script
 // Handles CSV/XLSX parsing, segmentation, and JSON output for Bowlero/AMF/Lucky Strike brands
-// Robust CSV parsing: quoted fields, arrays, headerless, nested, vertical/horizontal, criteria, segmentation, etc.
+ // CSV parsing quoted fields, arrays, headerless, nested, vertical/horizontal, criteria, segmentation, etc.
 
 declare var XLSX: any;
 
-// Types
+// Type
 interface Criteria {
   type: "criteria" | "and" | "or";
   field?: string;

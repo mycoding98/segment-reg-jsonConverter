@@ -10,12 +10,12 @@ export interface Criteria {
   
   // Interface for the contact criteria in the segmentation JSON
   export interface ContactCriteria {
-    type: "and" | "or";             // Specifies the logical operator
-    children: Criteria[];           // Array of nested criteria
+    type: "and" | "or";            
+    children: Criteria[];          
   }
   
   // Interface for the segmentation JSON structure
   export interface Segmentation {
-    name: string;                   // Name of the segment
-    contactCriteria: ContactCriteria; // Logical criteria for the segment
+    name: string;                   
+    contactCriteria: ContactCriteria; 
   }
