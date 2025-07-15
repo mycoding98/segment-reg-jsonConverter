@@ -29,10 +29,10 @@
 
 -->
 
-<div class="main-grid">
+<div class="section-row">
   <div class="section upload-section">
     <h2>Upload File</h2>
-    <input type="file" id="fileInput" accept=".csv, .xlsx, .json" />
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.json">
   </div>
   <div class="section paste-section">
     <h2>Paste Raw Data</h2>
@@ -45,10 +45,12 @@
     <button id="copyButton">Copy Output</button>
     <button id="downloadButton">Download JSON</button>
   </div>
-  <div class="json-section validator-section">
-<h2>Paste JSON here:</h2>
-<textarea class="jsonInput" id="jsonInput"></textarea>
+  <div class="section json-section validator-section">
+    <h2>Paste JSON here:</h2>
+    <textarea class="jsonInput" id="jsonInput"></textarea>
     <button id="validateJsonButton">Validate JSON</button>
     <pre id="jsonValidationResult"></pre>
   </div>
 </div>
+</body>
+</html>
