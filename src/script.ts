@@ -1,10 +1,10 @@
 // AMERconvert Main Script
 // Handles CSV/XLSX parsing, segmentation, and JSON output for Bowlero/AMF/Lucky Strike brands
- // CSV parsing quoted fields, arrays, headerless, nested, vertical/horizontal, criteria, segmentation, etc.
+// Robust CSV parsing: quoted fields, arrays, headerless, nested, vertical/horizontal, criteria, segmentation, etc.
 
 declare var XLSX: any;
 
-// Type
+// Types
 interface Criteria {
   type: "criteria" | "and" | "or";
   field?: string;
@@ -20,7 +20,7 @@ interface SegmentationRow {
 }
 
 // Brand/type lists and field mappings
-const BRAND_LIST = ["Bowlero", "AMF", "Lucky Strike"];
+const BRAND_LIST = ["Bowlero", "AMF", "Lucky Strike", "LuckyStrike"];
 const TYPE_LIST = ["Retail", "League", "Group Event", "GE"];
 
 const fieldMappings: Record<string, Record<string, { pref: number; center: number; unsub: number }>> = {
@@ -42,6 +42,12 @@ const fieldMappings: Record<string, Record<string, { pref: number; center: numbe
     "Group Event": { "pref": 1067, "center": 1068, "unsub": 1084 },
     "GE": { "pref": 1067, "center": 1068, "unsub": 1084 },
   },
+  "LuckyStrike": {
+    "Retail": { "pref": 1064, "center": 1065, "unsub": 1084 },
+    "League": { "pref": 1082, "center": 1083, "unsub": 1084 },
+    "Group Event": { "pref": 1067, "center": 1068, "unsub": 1084 },
+    "GE": { "pref": 1067, "center": 1068, "unsub": 1084 },
+  }
 };
 
 // State variables
@@ -69,13 +75,14 @@ function transpose(matrix: any[][]): any[][] {
 
 // Normalize brand and type values
 function normalizeBrand(brand: string): string {
-  const match = BRAND_LIST.find(b => b.toLowerCase() === (brand + '').toLowerCase());
+  brand = (brand + '').trim();
+  const match = BRAND_LIST.find(b => b.toLowerCase() === brand.toLowerCase());
   return match || brand;
 }
 function normalizeType(type: string): string {
-  if (type.toLowerCase() === "ge") return "Group Event";
-  const found = TYPE_LIST.find(t => t.toLowerCase() === type.toLowerCase());
-  return found || type;
+  type = (type + '').trim();
+  if (type.toLowerCase() === "ge" || type.toLowerCase() === "group event") return "Group Event";
+  return type;
 }
 
 // Read file as ArrayBuffer
@@ -483,7 +490,7 @@ fileInput?.addEventListener('change', async (event: Event) => {
         for (const [key, chunks] of grouped.entries()) {
           for (let i = 0; i < chunks.length; i++) {
             const { rows, brand, type } = chunks[i];
-            const mapping = fieldMappings[brand]?.[normalizeType(type)];
+            const mapping = fieldMappings[normalizeBrand(brand)]?.[normalizeType(type)];
             if (!mapping) {
               outputStr += `// No mapping for brand "${brand}" and type "${type}"
 `;
