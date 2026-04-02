@@ -32,7 +32,7 @@ A web-based and CLI tool for converting segmentation and regular CSV files to JS
 - Ignore `node_modules/` and build artifacts in git
 
 ## Sharing
-- To share with your team, zip the project (excluding `node_modules/`) or push to GitHub.
+- Zip the project (excluding `node_modules/`) or push to GitHub.
 
 ## License
 MIT
